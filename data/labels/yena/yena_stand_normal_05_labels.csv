@@ -1,0 +1,8 @@
+video_name,start_sec,end_sec,label
+yena_stand_normal_05.mp4,0,1,ignore
+yena_stand_normal_05.mp4,1,2,standing
+yena_stand_normal_05.mp4,2,4,raising_arms
+yena_stand_normal_05.mp4,4,6,lowering_arms
+yena_stand_normal_05.mp4,6,9,raising_arms
+yena_stand_normal_05.mp4,9,11,lowering_arms
+yena_stand_normal_05.mp4,11,12,ignore

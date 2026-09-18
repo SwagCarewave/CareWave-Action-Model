@@ -1,0 +1,17 @@
+video_name,start_sec,end_sec,label
+sujin_slow_lie_down_01.mp4,0,7,slow_lying_down
+sujin_slow_lie_down_01.mp4,7,27,lying
+sujin_slow_lie_down_01.mp4,27,34,getting_up
+sujin_slow_lie_down_01.mp4,34,36,standing
+sujin_slow_lie_down_01.mp4,36,46,slow_lying_down
+sujin_slow_lie_down_01.mp4,46,61,lying
+sujin_slow_lie_down_01.mp4,61,74,getting_up
+sujin_slow_lie_down_01.mp4,74,77,standing
+sujin_slow_lie_down_01.mp4,77,84,slow_lying_down
+sujin_slow_lie_down_01.mp4,84,119,lying
+sujin_slow_lie_down_01.mp4,119,129,getting_up
+sujin_slow_lie_down_01.mp4,129,131,standing
+sujin_slow_lie_down_01.mp4,131,136,slow_lying_down
+sujin_slow_lie_down_01.mp4,136,170,lying
+sujin_slow_lie_down_01.mp4,170,178,getting_up
+sujin_slow_lie_down_01.mp4,178,180,ignore

@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Generated data
+data/processed/*
+!data/processed/.gitkeep
+
+# Large input data
+data/raw_csi/*
+!data/raw_csi/.gitkeep
+
+data/pose_predictions/*
+!data/pose_predictions/.gitkeep
+
+# Model weights
+checkpoints/*
+!checkpoints/.gitkeep
+*.pt
+*.pth
+*.ckpt
+
+# Training outputs
+runs/
+logs/
+wandb/

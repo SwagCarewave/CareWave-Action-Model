@@ -1,0 +1,6 @@
+video_name,start_sec,end_sec,label
+sujin_fall_normal_04.mp4,0,2,standing
+sujin_fall_normal_04.mp4,2,3,falling
+sujin_fall_normal_04.mp4,3,8,lying
+sujin_fall_normal_04.mp4,8,11,getting_up
+sujin_fall_normal_04.mp4,11,12,ignore

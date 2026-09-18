@@ -1,0 +1,10 @@
+video_name,start_sec,end_sec,label
+hoyeon_stand_normal_01.mp4,0,1,ignore
+hoyeon_stand_normal_01.mp4,1,28,standing
+hoyeon_stand_normal_01.mp4,28,29,transition
+hoyeon_stand_normal_01.mp4,29,60,standing
+hoyeon_stand_normal_01.mp4,60,62,transition
+hoyeon_stand_normal_01.mp4,62,86,standing
+hoyeon_stand_normal_01.mp4,86,89,transition
+hoyeon_stand_normal_01.mp4,89,120,standing
+hoyeon_stand_normal_01.mp4,120,122,ignore

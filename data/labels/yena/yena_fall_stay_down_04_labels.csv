@@ -1,0 +1,5 @@
+video_name,start_sec,end_sec,label
+yena_fall_stay_down_04.mp4,0,1,standing
+yena_fall_stay_down_04.mp4,1,3,falling
+yena_fall_stay_down_04.mp4,3,11,lying
+yena_fall_stay_down_04.mp4,11,12,ignore

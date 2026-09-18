@@ -1,0 +1,4 @@
+video_name,start_sec,end_sec,label
+sujin_stand_normal_02.mp4,0,1,ignore
+sujin_stand_normal_02.mp4,1,59,standing
+sujin_stand_normal_02.mp4,59,60,ignore

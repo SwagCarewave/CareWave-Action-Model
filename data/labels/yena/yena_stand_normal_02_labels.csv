@@ -1,0 +1,4 @@
+video_name,start_sec,end_sec,label
+yena_stand_normal_02.mp4,0,1,ignore
+yena_stand_normal_02.mp4,1,9,standing
+yena_stand_normal_02.mp4,9,10,ignore

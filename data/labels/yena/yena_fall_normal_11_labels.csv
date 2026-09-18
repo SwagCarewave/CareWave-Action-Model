@@ -1,0 +1,6 @@
+video_name,start_sec,end_sec,label
+yena_fall_normal_11.mp4,0,1,standing
+yena_fall_normal_11.mp4,1,3,falling
+yena_fall_normal_11.mp4,3,9,lying
+yena_fall_normal_11.mp4,9,12,transition
+yena_fall_normal_11.mp4,12,13,ignore

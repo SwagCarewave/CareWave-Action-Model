@@ -1,0 +1,8 @@
+video_name,start_sec,end_sec,label
+hoyeon_lie_down_normal_01.mp4,0,68,lying
+hoyeon_lie_down_normal_01.mp4,68,72,transition
+hoyeon_lie_down_normal_01.mp4,72,133,lying
+hoyeon_lie_down_normal_01.mp4,133,137,transition
+hoyeon_lie_down_normal_01.mp4,137,176,lying
+hoyeon_lie_down_normal_01.mp4,176,178,transition
+hoyeon_lie_down_normal_01.mp4,178,179,ignore

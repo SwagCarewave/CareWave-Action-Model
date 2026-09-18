@@ -1,0 +1,5 @@
+video_name,start_sec,end_sec,label
+sujin_fall_stay_down_05.mp4,0,1,standing
+sujin_fall_stay_down_05.mp4,1,4,falling
+sujin_fall_stay_down_05.mp4,4,9,lying
+sujin_fall_stay_down_05.mp4,9,10,ignore
