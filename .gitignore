@@ -22,14 +22,14 @@ data/raw_csi/*
 data/pose_predictions/*
 !data/pose_predictions/.gitkeep
 
-# Model weights
-checkpoints/*
-!checkpoints/.gitkeep
+# Training outputs and model weights
+outputs/*
+!outputs/.gitkeep
 *.pt
 *.pth
 *.ckpt
 
-# Training outputs
+# Training logs
 runs/
 logs/
 wandb/
