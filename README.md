@@ -57,3 +57,15 @@ python infer_action_stream.py data/raw_csi/yena/yena_fall_normal_01_csi_raw.csv
 호환되도록 52개 열을 기준으로 RX별 0.1초 평균과 시간축 보간을 수행하고,
 보간 전 결측률을 품질 보고서에 남깁니다. 이후 새 데이터를 수집할 때는
 0값을 삭제하지 말고 원래 인덱스에 보존해야 합니다.
+
+## Current CSI Stream Baseline
+
+- Checkpoint: `outputs/csi_stream_augmented/best.pt`
+- Validation macro-F1: 0.8501
+- Test macro-F1: 0.4320
+- Fall precision: 0.2059
+- Fall recall: 0.4375
+- Fall F1: 0.2800
+- Event recall: 0.5
+- Known issue: `hoyeon_test_04`의 standing 윈도우 27개를 모두 오분류함
+- Note: 현재 test set은 모델 비교에 사용되어 최종 평가 세트가 아닌 개발용 세트로 간주함
