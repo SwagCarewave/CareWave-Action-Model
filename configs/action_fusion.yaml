@@ -1,0 +1,78 @@
+seed: 42
+seeds: [42, 52, 62]
+
+data:
+  raw_csi_dir: data/raw_csi
+  labels_dir: data/labels
+  processed_dir: data/processed/csi_stream
+  target_fps: 10
+  subcarriers_per_rx: 52
+  rx_ids: [RX1, RX2, RX3]
+  window_seconds: 3.0
+  stride_seconds: 0.5
+  classes: [standing, lying, falling]
+  class_to_id: { standing: 0, lying: 1, falling: 2 }
+  excluded_labels:
+    [
+      transition,
+      getting_up,
+      ignore,
+      slow_lying_down,
+      adjusting_position,
+      turning_body,
+      lowering_arms,
+      raising_arms,
+      turning_head,
+      walking,
+    ]
+  label_policy: event_overlap_center
+  fall_overlap_threshold: 0.30
+  boundary_weight: 0.50
+  max_missing_ratio: 0.20
+  split:
+    mode: session
+    test_dir_name: test
+    val_ratio: 0.20
+    seed: 42
+
+model:
+  conv_channels: 128
+  kernel_size: 5
+  tcn_blocks: 2
+  lstm_hidden: 128
+  lstm_layers: 2
+  attention_hidden: 64
+  dropout: 0.30
+
+training:
+  batch_size: 64
+  epochs: 100
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  patience: 15
+  gradient_clip: 1.0
+  scheduler: reduce_on_plateau
+  scheduler_factor: 0.5
+  scheduler_patience: 4
+  num_workers: 0
+  device: auto
+
+augmentation:
+  enabled: true
+  gaussian_noise_std: 0.02
+  subcarrier_dropout: 0.03
+  amplitude_scale_min: 0.9
+  amplitude_scale_max: 1.1
+  time_shift_frames: 2
+
+postprocess:
+  inference_stride_seconds: 0.2
+  ema_alpha: 0.6
+  unknown_threshold: 0.55
+  fall_threshold: 0.65
+  confirm_count: 3
+  confirm_window: 5
+  duplicate_suppression_seconds: 10.0
+
+preprocessing:
+  window_center: false
