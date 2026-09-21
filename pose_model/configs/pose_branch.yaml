@@ -1,0 +1,44 @@
+seed: 42
+
+paths:
+  labels_dir: ../data/labels
+  pose_cache_dir: data/pose_predictions
+  feature_dir: data/processed/pose_features
+  window_dir: data/processed/pose_windows
+
+first_stage:
+  variant: v2
+
+windows:
+  fps: 10
+  window_seconds: 3.0
+  stride_seconds: 0.5
+  min_pose_valid_ratio: 0.95
+  fall_margin_pre_sec: 0.5
+  fall_margin_post_sec: 1.0
+  positive_overlap: 0.30
+  positive_center_pre_sec: 0.3
+  positive_center_post_sec: 0.8
+  standing_ratio: 0.80
+  soft_boundary_weight: 0.5
+  hard_negatives: true
+
+split:
+  mode: lineage_oos
+  val_fraction: 0.15
+  test_fraction: 0.15
+
+features:
+  mode: full
+
+model:
+  pose_hidden: 64
+  dropout: 0.3
+
+train:
+  batch_size: 64
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  max_epochs: 100
+  patience: 12
+  grad_clip: 1.0
