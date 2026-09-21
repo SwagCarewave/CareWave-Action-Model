@@ -33,3 +33,9 @@ outputs/*
 runs/
 logs/
 wandb/
+
+# Pose model: regenerable or diagnostic data
+pose_model/data/processed/
+pose_model/data/pose_predictions/gt_diag/
+pose_model/data/pose_predictions/cwt/*.npz
+pose_model/data/pose_predictions/v2/*.npz
