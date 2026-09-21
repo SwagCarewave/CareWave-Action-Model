@@ -1,0 +1,37 @@
+{
+  "tag": "cwt_full_lineage_oos_pfn",
+  "seed": 43,
+  "best_epoch": 1,
+  "validation": {
+    "threshold": 0.45,
+    "n": 179,
+    "n_fall": 19,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "specificity": 1.0,
+    "balanced_accuracy": 1.0,
+    "auroc": 1.0,
+    "auprc": 0.9999999999999998,
+    "confusion": [
+      [
+        160,
+        0
+      ],
+      [
+        0,
+        19
+      ]
+    ]
+  },
+  "mean_gate_val": 0.6453732252120972,
+  "config": {
+    "hidden": 64,
+    "dropout": 0.3,
+    "lr": 0.001,
+    "gate": true,
+    "quality_input": true,
+    "noise": 0.02,
+    "mask_prob": 0.3
+  }
+}

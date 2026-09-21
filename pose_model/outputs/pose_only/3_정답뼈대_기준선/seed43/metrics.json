@@ -1,0 +1,37 @@
+{
+  "tag": "gt_diag_full_stratified_pfn",
+  "seed": 43,
+  "best_epoch": 10,
+  "validation": {
+    "threshold": 0.3,
+    "n": 1828,
+    "n_fall": 53,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "specificity": 1.0,
+    "balanced_accuracy": 1.0,
+    "auroc": 1.0,
+    "auprc": 1.0,
+    "confusion": [
+      [
+        1775,
+        0
+      ],
+      [
+        0,
+        53
+      ]
+    ]
+  },
+  "mean_gate_val": 0.8076408505439758,
+  "config": {
+    "hidden": 64,
+    "dropout": 0.3,
+    "lr": 0.001,
+    "gate": true,
+    "quality_input": true,
+    "noise": 0.02,
+    "mask_prob": 0.3
+  }
+}

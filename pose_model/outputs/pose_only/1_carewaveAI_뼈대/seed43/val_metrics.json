@@ -1,0 +1,57 @@
+{
+  "split": "validation",
+  "window": {
+    "threshold": 0.75,
+    "n": 1764,
+    "n_fall": 46,
+    "precision": 0.05010438413361169,
+    "recall": 0.5217391304347826,
+    "f1": 0.09142857142857143,
+    "specificity": 0.7351571594877765,
+    "balanced_accuracy": 0.6284481449612795,
+    "auroc": 0.6688262388014374,
+    "auprc": 0.040294875309443964,
+    "confusion": [
+      [
+        1263,
+        455
+      ],
+      [
+        22,
+        24
+      ]
+    ]
+  },
+  "event_params": {
+    "thr": 0.8,
+    "alpha": 0.8,
+    "k": 2
+  },
+  "event": {
+    "events": 13,
+    "matched": 11,
+    "event_recall": 0.8461538461538461,
+    "event_precision": 0.1134020618556701,
+    "event_f1": 0.19999999999999998,
+    "alarms": 97,
+    "false_alarms": 86,
+    "false_alarms_per_hour": 365.1804641336456,
+    "negative_hours": 0.23550000190734863,
+    "mean_latency_sec": 2.5363636883822354,
+    "duplicate_alarms": 0
+  },
+  "false_alarm_rate_by_nonfall_subtype": {
+    "chair_sit_variation": 0.353,
+    "free_activity_normal": 0.374,
+    "getting_up": 0.0,
+    "lying": 0.0,
+    "pick_up_normal": 0.421,
+    "sit_normal": 0.04,
+    "sit_to_stand_normal": 0.0,
+    "standing": 0.091,
+    "transition": 0.0,
+    "walk_normal": 0.163
+  },
+  "mean_gate": 0.6140279173851013,
+  "run": "outputs\\pose_only\\1_carewaveAI_\ubf08\ub300\\seed43"
+}

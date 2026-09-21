@@ -1,0 +1,57 @@
+{
+  "split": "validation",
+  "window": {
+    "threshold": 0.55,
+    "n": 1828,
+    "n_fall": 53,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "specificity": 1.0,
+    "balanced_accuracy": 1.0,
+    "auroc": 1.0,
+    "auprc": 1.0,
+    "confusion": [
+      [
+        1775,
+        0
+      ],
+      [
+        0,
+        53
+      ]
+    ]
+  },
+  "event_params": {
+    "thr": 0.5,
+    "alpha": 0.4,
+    "k": 2
+  },
+  "event": {
+    "events": 13,
+    "matched": 13,
+    "event_recall": 1.0,
+    "event_precision": 1.0,
+    "event_f1": 1.0,
+    "alarms": 15,
+    "false_alarms": 0,
+    "false_alarms_per_hour": 0.0,
+    "negative_hours": 0.23485622803370154,
+    "mean_latency_sec": 1.3799435908977802,
+    "duplicate_alarms": 2
+  },
+  "false_alarm_rate_by_nonfall_subtype": {
+    "chair_sit_variation": 0.0,
+    "free_activity_normal": 0.0,
+    "getting_up": 0.0,
+    "lying": 0.0,
+    "pick_up_normal": 0.0,
+    "sit_normal": 0.0,
+    "sit_to_stand_normal": 0.0,
+    "standing": 0.0,
+    "transition": 0.0,
+    "walk_normal": 0.0
+  },
+  "mean_gate": 0.6947176456451416,
+  "run": "outputs\\pose_only\\3_\uc815\ub2f5\ubf08\ub300_\uae30\uc900\uc120\\seed44"
+}

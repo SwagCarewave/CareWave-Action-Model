@@ -1,0 +1,37 @@
+{
+  "tag": "v2_oofb_full_stratified_pfn",
+  "seed": 43,
+  "best_epoch": 2,
+  "validation": {
+    "threshold": 0.75,
+    "n": 1764,
+    "n_fall": 46,
+    "precision": 0.05010438413361169,
+    "recall": 0.5217391304347826,
+    "f1": 0.09142857142857143,
+    "specificity": 0.7351571594877765,
+    "balanced_accuracy": 0.6284481449612795,
+    "auroc": 0.6688262388014374,
+    "auprc": 0.040294875309443964,
+    "confusion": [
+      [
+        1263,
+        455
+      ],
+      [
+        22,
+        24
+      ]
+    ]
+  },
+  "mean_gate_val": 0.6140279173851013,
+  "config": {
+    "hidden": 64,
+    "dropout": 0.3,
+    "lr": 0.001,
+    "gate": true,
+    "quality_input": true,
+    "noise": 0.02,
+    "mask_prob": 0.3
+  }
+}

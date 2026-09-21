@@ -1,0 +1,52 @@
+{
+  "split": "validation",
+  "window": {
+    "threshold": 0.3,
+    "n": 179,
+    "n_fall": 19,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "specificity": 1.0,
+    "balanced_accuracy": 1.0,
+    "auroc": 1.0,
+    "auprc": 0.9999999999999998,
+    "confusion": [
+      [
+        160,
+        0
+      ],
+      [
+        0,
+        19
+      ]
+    ]
+  },
+  "event_params": {
+    "thr": 0.5,
+    "alpha": 0.4,
+    "k": 2
+  },
+  "event": {
+    "events": 9,
+    "matched": 8,
+    "event_recall": 0.8888888888888888,
+    "event_precision": 1.0,
+    "event_f1": 0.9411764705882353,
+    "alarms": 8,
+    "false_alarms": 0,
+    "false_alarms_per_hour": 0.0,
+    "negative_hours": 0.020361109309726292,
+    "mean_latency_sec": 2.787499725818634,
+    "duplicate_alarms": 0
+  },
+  "false_alarm_rate_by_nonfall_subtype": {
+    "getting_up": 0.0,
+    "lying": 0.0,
+    "pick_up_variation": 0.0,
+    "standing": 0.0,
+    "transition": 0.0
+  },
+  "mean_gate": 0.6556442975997925,
+  "run": "outputs\\pose_only\\2_carewaveTest_\ubf08\ub300\\seed44"
+}

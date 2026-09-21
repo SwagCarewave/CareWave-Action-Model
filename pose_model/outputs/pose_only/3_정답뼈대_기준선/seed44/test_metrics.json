@@ -1,0 +1,60 @@
+{
+  "split": "test",
+  "window": {
+    "threshold": 0.55,
+    "n": 2905,
+    "n_fall": 28,
+    "precision": 0.7,
+    "recall": 1.0,
+    "f1": 0.8235294117647058,
+    "specificity": 0.9958289885297185,
+    "balanced_accuracy": 0.9979144942648592,
+    "auroc": 1.0,
+    "auprc": 0.9999999999999999,
+    "confusion": [
+      [
+        2865,
+        12
+      ],
+      [
+        0,
+        28
+      ]
+    ]
+  },
+  "event_params": {
+    "thr": 0.5,
+    "alpha": 0.4,
+    "k": 2
+  },
+  "event": {
+    "events": 7,
+    "matched": 7,
+    "event_recall": 1.0,
+    "event_precision": 0.7,
+    "event_f1": 0.8235294117647058,
+    "alarms": 10,
+    "false_alarms": 3,
+    "false_alarms_per_hour": 7.114598800663136,
+    "negative_hours": 0.4216681901613871,
+    "mean_latency_sec": 1.714564664023263,
+    "duplicate_alarms": 0
+  },
+  "false_alarm_rate_by_nonfall_subtype": {
+    "bending_normal": 0.0,
+    "chair_sit_variation": 0.0,
+    "free_activity_normal": 0.008,
+    "getting_up": 0.0,
+    "lying": 0.0,
+    "pick_up_normal": 0.0,
+    "pick_up_variation": 0.0,
+    "sit_normal": 0.002,
+    "sit_to_stand_normal": 0.019,
+    "slow_lying_down": 0.0,
+    "standing": 0.0,
+    "transition": 0.0,
+    "walk_normal": 0.012
+  },
+  "mean_gate": 0.718690812587738,
+  "run": "outputs\\pose_only\\3_\uc815\ub2f5\ubf08\ub300_\uae30\uc900\uc120\\seed44"
+}
