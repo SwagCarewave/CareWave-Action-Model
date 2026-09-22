@@ -7,8 +7,4 @@ PyYAML
 matplotlib
 seaborn
 tqdm
-numpy>=1.24
-pandas>=2.0
-PyYAML>=6.0
-scikit-learn>=1.3
-torch>=2.1
+ipykernel
