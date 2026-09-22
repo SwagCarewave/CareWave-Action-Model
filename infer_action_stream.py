@@ -1,58 +1,25 @@
-"""Run offline sliding-window inference for one raw CSI CSV."""
-
+"""Run CSI-stream inference for one raw recording."""
+from __future__ import annotations
 import argparse
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import torch
-
-from data.csi_dataset import FEATURE_COLUMNS, preprocess_raw
+import yaml
+from csi_dataset import load_csi_10hz, scale_features
 from models.csi_encoder import CSIActionClassifier
-from postprocess_state_machine import ActionStateMachine
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("raw_csv", type=Path)
-    parser.add_argument("--checkpoint", type=Path, default=Path("outputs/csi_stream/best.pt"))
-    parser.add_argument("--stride-seconds", type=float, default=None)
-    parser.add_argument("--output", type=Path, default=Path("outputs/csi_stream/predictions.csv"))
-    args = parser.parse_args()
-    ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
-    fps = int(ckpt["target_fps"])
-    window = int(round(float(ckpt["window_seconds"]) * fps))
-    post_cfg = ckpt.get("postprocess", ckpt.get("config", {}).get("postprocess", {}))
-    stride_seconds = args.stride_seconds if args.stride_seconds is not None else float(post_cfg.get("inference_stride_seconds", 0.2))
-    stride = max(1, int(round(stride_seconds * fps)))
-    frame_df, _ = preprocess_raw(args.raw_csv, fps)
-    values = frame_df[FEATURE_COLUMNS].to_numpy(np.float32)
-    starts = list(range(0, len(values) - window + 1, stride))
-    if not starts:
-        raise SystemExit(f"Recording needs at least {window} frames")
-    x = np.stack([values[s : s + window] for s in starts])
-    x = (x - ckpt["mean"][None, None, :]) / ckpt["std"][None, None, :]
-    model = CSIActionClassifier(num_classes=len(ckpt["class_names"]), **ckpt["model_config"])
-    model.load_state_dict(ckpt["model_state"]); model.eval()
+def main():
+    p = argparse.ArgumentParser(); p.add_argument("raw_csv", type=Path); p.add_argument("--config", type=Path, default=Path("configs/action_fusion.yaml")); p.add_argument("--checkpoint", type=Path, default=Path("outputs/csi_stream/best.pt")); p.add_argument("--output", type=Path, default=Path("outputs/csi_stream/inference.csv")); args = p.parse_args()
+    cfg = yaml.safe_load(args.config.read_text(encoding="utf-8")); data, prep = cfg["data"], cfg["preprocessing"]
+    frame, raw_features, _ = load_csi_10hz(args.raw_csv, data); features = scale_features(raw_features, Path(data["scaler_path"]), float(prep["clip_min"]), float(prep["clip_max"]))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu"); checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False); model = CSIActionClassifier(**checkpoint["model_config"]).to(device); model.load_state_dict(checkpoint["model_state"]); model.eval()
+    window = round(data["window_seconds"] * data["target_fps"]); stride = max(1, round(cfg.get("postprocess", {}).get("inference_stride_seconds", .2) * data["target_fps"])); rows = []
     with torch.no_grad():
-        probabilities = torch.softmax(model(torch.from_numpy(x)), dim=1).numpy()
-    rows = []
-    machine = ActionStateMachine(ckpt["class_names"], post_cfg)
-    for i, start in enumerate(starts):
-        pred = int(probabilities[i].argmax())
-        center_sec = (start + window / 2) / fps
-        state = machine.update(center_sec, probabilities[i])
-        row = {
-            "time_sec": center_sec, "start_sec": start / fps,
-            "end_sec": (start + window) / fps,
-            **{f"prob_{name}": float(probabilities[i, j]) for j, name in enumerate(ckpt["class_names"])},
-            **state,
-        }
-        rows.append(row)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(rows).to_csv(args.output, index=False, encoding="utf-8-sig")
-    print(f"Saved {len(rows)} predictions: {args.output}")
+        for start in range(0, len(features) - window + 1, stride):
+            probability = float(torch.sigmoid(model(torch.from_numpy(features[start:start + window][None]).to(device))).item()); rows.append({"start_sec": float(frame.time_sec.iloc[start]), "end_sec": float(frame.time_sec.iloc[start + window - 1] + 1 / data["target_fps"]), "fall_probability": probability, "prediction": "falling" if probability >= checkpoint.get("threshold", .5) else "standing"})
+    args.output.parent.mkdir(parents=True, exist_ok=True); pd.DataFrame(rows).to_csv(args.output, index=False, encoding="utf-8-sig"); print(f"Saved {len(rows)} predictions to {args.output}")
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__": main()

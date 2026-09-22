@@ -1,0 +1,4 @@
+video_name,start_sec,end_sec,label
+hoyeon_walk_normal_01.mp4,0,1,ignore
+hoyeon_walk_normal_01.mp4,1,119,walking
+hoyeon_walk_normal_01.mp4,119,120,ignore

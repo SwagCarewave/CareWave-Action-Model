@@ -1,155 +1,575 @@
-"""Create 3-second CSI action windows from all matched recordings."""
+"""Build 3-second, 315-D CSI windows with normal-motion hard negatives."""
 
 from __future__ import annotations
 
 import argparse
+import sys
 from collections import Counter
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+ROOT = Path(__file__).resolve().parents[1]
+
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from build_action_labels import assign_splits, discover_pairs
-from csi_dataset import FEATURE_COLUMNS, enrich_intervals, labels_for_times, load_config, load_labels, preprocess_raw, save_json
+from csi_dataset import (
+    labels_for_times,
+    load_config,
+    load_csi_10hz,
+    load_labels,
+    save_json,
+    scale_features,
+)
 
 
-def build_recording(pair: dict, cfg: dict) -> tuple[list[np.ndarray], list[int], list[float], list[dict], dict]:
-    data_cfg = cfg["data"]
-    frame_df, quality = preprocess_raw(Path(pair["raw_path"]), int(data_cfg["target_fps"]))
-    intervals = enrich_intervals(load_labels(Path(pair["label_path"])), pair["sample_id"], pair["subject"])
-    frame_labels = labels_for_times(frame_df["time_sec"].to_numpy(), intervals)
-    features = frame_df[FEATURE_COLUMNS].to_numpy(np.float32)
-    class_names = list(data_cfg["classes"])
-    class_to_id = {name: idx for idx, name in enumerate(class_names)}
-    window = int(round(float(data_cfg["window_seconds"]) * int(data_cfg["target_fps"])))
-    stride = int(round(float(data_cfg["stride_seconds"]) * int(data_cfg["target_fps"])))
-    max_missing = float(data_cfg.get("max_missing_ratio", 1.0))
-    fall_threshold = float(data_cfg.get("fall_overlap_threshold", 0.30))
-    boundary_weight = float(data_cfg.get("boundary_weight", 0.5))
-    split = pair["split"]
+def overlap_ratio(
+    start: float,
+    end: float,
+    event_start: float,
+    event_end: float,
+) -> float:
+    overlap = max(
+        0.0,
+        min(end, event_end) - max(start, event_start),
+    )
+
+    return overlap / max(end - start, 1e-9)
+
+
+def build_recording(
+    pair: dict,
+    cfg: dict,
+    events: pd.DataFrame,
+):
+    data = cfg["data"]
+    preprocessing = cfg["preprocessing"]
+
+    frame, raw_features, quality = load_csi_10hz(
+        Path(pair["raw_path"]),
+        data,
+    )
+
+    features = scale_features(
+        raw_features,
+        Path(data["scaler_path"]),
+        float(preprocessing["clip_min"]),
+        float(preprocessing["clip_max"]),
+    )
+
+    intervals = load_labels(Path(pair["label_path"]))
+
+    times = frame["time_sec"].to_numpy()
+    frame_labels = labels_for_times(times, intervals)
+
+    sample_events = events[
+        events["sample_id"].astype(str).eq(pair["sample_id"])
+    ]
+
+    fps = int(data["target_fps"])
+
+    window = round(
+        float(data["window_seconds"]) * fps
+    )
+
+    stride = round(
+        float(data["stride_seconds"]) * fps
+    )
+
+    standing_threshold = float(
+        data.get("standing_ratio_threshold", 0.80)
+    )
+
+    non_fall_threshold = float(
+        data.get(
+            "non_fall_ratio_threshold",
+            standing_threshold,
+        )
+    )
+
+    hard_negative_labels = {
+        str(label).strip().lower()
+        for label in data.get("hard_negative_labels", [])
+    }
+
+    non_fall_labels = {
+        "standing",
+        *hard_negative_labels,
+    }
 
     xs: list[np.ndarray] = []
     ys: list[int] = []
     weights: list[float] = []
-    meta: list[dict] = []
+    metadata: list[dict] = []
+
     dropped = Counter()
-    for start in range(0, len(features) - window + 1, stride):
-        end = start + window
-        center = start + window // 2
-        center_label = str(frame_labels[center])
-        labels_in_window = frame_labels[start:end]
-        fall_overlap = float(np.mean(labels_in_window == "falling"))
-        target = "falling" if fall_overlap >= fall_threshold else center_label
-        if target not in class_to_id:
-            dropped[f"center_{center_label}"] += 1
-            continue
-        missing_ratio = float(frame_df["missing_ratio_before_fill"].iloc[start:end].mean())
-        if missing_ratio > max_missing:
-            dropped["quality"] += 1
-            continue
-        purity = float(np.mean(labels_in_window == target))
-        sample_weight = boundary_weight if target == "falling" and center_label != "falling" else 1.0
-        center_time = float(frame_df["time_sec"].iloc[center])
-        center_rows = intervals[(intervals["start_sec"] <= center_time) & (center_time < intervals["end_sec"])]
-        center_meta = center_rows.iloc[0] if len(center_rows) else None
-        window_start = float(frame_df["time_sec"].iloc[start])
-        window_end = float(frame_df["time_sec"].iloc[end - 1] + 1 / data_cfg["target_fps"])
-        event_rows = intervals[
-            (intervals["label"] == "falling")
-            & (intervals["start_sec"] < window_end)
-            & (intervals["end_sec"] > window_start)
-        ]
-        event_id = str(event_rows.iloc[0]["event_id"]) if len(event_rows) else (
-            str(center_meta["event_id"]) if center_meta is not None else ""
+    kept_sources = Counter()
+
+    for first in range(
+        0,
+        len(features) - window + 1,
+        stride,
+    ):
+        last = first + window
+
+        start = float(times[first])
+        end = start + window / fps
+        center = (start + end) / 2.0
+
+        positive = None
+        any_fall_overlap = False
+
+        for event in sample_events.itertuples(index=False):
+            onset = float(event.onset_sec)
+            impact = float(event.impact_sec)
+
+            positive_start = (
+                onset
+                - float(data["fall_pre_onset_sec"])
+            )
+
+            positive_end = (
+                impact
+                + float(data["fall_post_impact_sec"])
+            )
+
+            ratio = overlap_ratio(
+                start,
+                end,
+                positive_start,
+                positive_end,
+            )
+
+            if ratio > 0.0:
+                any_fall_overlap = True
+
+            center_start = (
+                onset
+                - float(data["fall_center_pre_onset_sec"])
+            )
+
+            center_end = (
+                impact
+                + float(data["fall_center_post_impact_sec"])
+            )
+
+            center_ok = center_start <= center <= center_end
+
+            if (
+                ratio >= float(
+                    data["fall_overlap_threshold"]
+                )
+                and center_ok
+            ):
+                positive = (event, ratio)
+                break
+
+        labels = np.asarray(
+            frame_labels[first:last],
+            dtype=object,
         )
-        xs.append(features[start:end])
-        ys.append(class_to_id[target])
+
+        standing_ratio = float(
+            np.mean(labels == "standing")
+        )
+
+        hard_negative_mask = np.isin(
+            labels,
+            list(hard_negative_labels),
+        )
+
+        hard_negative_ratio = float(
+            np.mean(hard_negative_mask)
+        )
+
+        non_fall_mask = np.isin(
+            labels,
+            list(non_fall_labels),
+        )
+
+        non_fall_ratio = float(
+            np.mean(non_fall_mask)
+        )
+
+        labels_in_window = Counter(
+            str(label)
+            for label in labels
+        )
+
+        if positive is not None:
+            event, fall_ratio = positive
+
+            target = 1
+            event_id = str(event.event_id)
+            binary_source = "falling"
+
+            confidence = float(
+                getattr(
+                    event,
+                    "label_confidence",
+                    1.0,
+                )
+            )
+
+            if fall_ratio < 0.50:
+                sample_weight = float(
+                    data["boundary_weight"]
+                )
+            else:
+                sample_weight = max(
+                    confidence,
+                    float(data["boundary_weight"]),
+                )
+
+        elif (
+            non_fall_ratio >= non_fall_threshold
+            and not any_fall_overlap
+        ):
+            target = 0
+            event_id = ""
+            fall_ratio = 0.0
+
+            if hard_negative_ratio > 0.0:
+                binary_source = "hard_negative"
+                sample_weight = float(
+                    data.get("hard_negative_weight", 4.0)
+                )
+            else:
+                binary_source = "standing"
+                sample_weight = 1.0
+
+        else:
+            if any_fall_overlap:
+                dropped["fall_boundary_ambiguous"] += 1
+            elif non_fall_ratio < non_fall_threshold:
+                dropped["excluded_or_mixed_label"] += 1
+            else:
+                dropped["ambiguous"] += 1
+
+            continue
+
+        xs.append(features[first:last])
+        ys.append(target)
         weights.append(sample_weight)
-        meta.append({
-            "sample_id": pair["sample_id"],
-            "subject": pair["subject"],
-            "subject_id": pair["subject"],
-            "session_id": pair["sample_id"],
-            "room_id": "unknown",
-            "is_explicit_test": pair["is_test"],
-            "split": split,
-            "start_sec": window_start,
-            "end_sec": window_end,
-            "center_sec": center_time,
-            "label": target,
-            "label_id": class_to_id[target],
-            "label_purity": purity,
-            "fall_overlap_ratio": fall_overlap,
-            "sample_weight": sample_weight,
-            "event_id": event_id,
-            "phase": str(center_meta["phase"]) if center_meta is not None else "unlabeled",
-            "label_confidence": float(center_meta["label_confidence"]) if center_meta is not None else 0.0,
-            "missing_ratio_before_fill": missing_ratio,
-        })
-    quality["split"] = split
-    quality["is_explicit_test"] = pair["is_test"]
-    quality["windows_kept"] = len(xs)
-    quality["windows_dropped"] = dict(dropped)
-    return xs, ys, weights, meta, quality
+
+        kept_sources[binary_source] += 1
+
+        metadata.append(
+            {
+                "sample_id": pair["sample_id"],
+                "subject_id": pair["subject"],
+                "session_id": pair["sample_id"],
+                "room_id": "unknown",
+                "split": pair["split"],
+                "start_sec": start,
+                "end_sec": end,
+                "center_sec": center,
+                "label": (
+                    "falling"
+                    if target == 1
+                    else "standing"
+                ),
+                "label_id": target,
+                "binary_source": binary_source,
+                "standing_ratio": standing_ratio,
+                "hard_negative_ratio": (
+                    hard_negative_ratio
+                ),
+                "non_fall_ratio": non_fall_ratio,
+                "fall_overlap_ratio": fall_ratio,
+                "sample_weight": sample_weight,
+                "event_id": event_id,
+                "source_labels": "|".join(
+                    f"{label}:{count}"
+                    for label, count
+                    in sorted(labels_in_window.items())
+                ),
+            }
+        )
+
+    quality.update(
+        {
+            "split": pair["split"],
+            "windows_kept": len(xs),
+            "windows_kept_by_source": dict(
+                kept_sources
+            ),
+            "windows_dropped": dict(dropped),
+        }
+    )
+
+    return (
+        xs,
+        ys,
+        weights,
+        metadata,
+        quality,
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=Path, default=Path("configs/action_fusion.yaml"))
-    args = parser.parse_args()
-    cfg = load_config(args.config)
-    data_cfg = cfg["data"]
-    raw_root = Path(data_cfg["raw_csi_dir"])
-    label_root = Path(data_cfg["labels_dir"])
-    out_dir = Path(data_cfg["processed_dir"])
-    out_dir.mkdir(parents=True, exist_ok=True)
 
-    split_cfg = data_cfg["split"]
-    pairs, raw_without_label, label_without_raw = discover_pairs(
-        raw_root, label_root, str(split_cfg.get("test_dir_name", "test"))
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path(
+            "configs/action_fusion.yaml"
+        ),
     )
-    pairs = assign_splits(pairs, split_cfg, int(cfg.get("seed", 42)))
-    if not pairs:
-        raise SystemExit(f"No matched files under {raw_root} and {label_root}")
+
+    parser.add_argument(
+        "--allow-unreviewed-events",
+        action="store_true",
+    )
+
+    args = parser.parse_args()
+
+    cfg = load_config(args.config)
+    data = cfg["data"]
+
+    event_path = Path(data["events_path"])
+
+    if not event_path.exists():
+        raise SystemExit(
+            "Run build_action_labels.py first: "
+            f"{event_path} not found"
+        )
+
+    events = pd.read_csv(event_path)
+
+    required_event_columns = {
+        "sample_id",
+        "event_id",
+        "onset_sec",
+        "impact_sec",
+        "review_status",
+    }
+
+    missing_columns = (
+        required_event_columns
+        - set(events.columns)
+    )
+
+    if missing_columns:
+        raise SystemExit(
+            "Event metadata missing columns: "
+            f"{sorted(missing_columns)}"
+        )
+
+    require_reviewed = bool(
+        data.get(
+            "require_reviewed_events",
+            True,
+        )
+    )
+
+    if (
+        require_reviewed
+        and not args.allow_unreviewed_events
+    ):
+        pending = (
+            events["review_status"]
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .ne("reviewed")
+        )
+
+        if pending.any():
+            raise SystemExit(
+                f"{int(pending.sum())} events need "
+                "review. Fix onset/impact and set "
+                "review_status=reviewed, or use "
+                "--allow-unreviewed-events for a "
+                "temporary experiment."
+            )
+
+    raw_root = Path(data["raw_csi_dir"])
+    label_root = Path(data["labels_dir"])
+
+    split_config = data["split"]
+
+    pairs, raw_only, label_only = discover_pairs(
+        raw_root,
+        label_root,
+        split_config.get(
+            "test_dir_name",
+            "test",
+        ),
+    )
+
+    pairs = assign_splits(
+        pairs,
+        split_config,
+        int(cfg.get("seed", 42)),
+    )
+
     all_x: list[np.ndarray] = []
     all_y: list[int] = []
     all_weights: list[float] = []
-    all_meta: list[dict] = []
-    quality_reports = []
+    all_metadata: list[dict] = []
+    quality_reports: list[dict] = []
+
+    failed_samples: list[str] = []
+
     for pair in pairs:
         try:
-            x, y, weights, meta, quality = build_recording(pair, cfg)
+            (
+                x,
+                y,
+                sample_weights,
+                metadata,
+                quality,
+            ) = build_recording(
+                pair,
+                cfg,
+                events,
+            )
+
         except Exception as exc:
-            quality_reports.append({"sample_id": pair["sample_id"], "error": str(exc)})
-            print(f"[ERROR] {pair['sample_id']}: {exc}")
+            failed_samples.append(
+                pair["sample_id"]
+            )
+
+            quality_reports.append(
+                {
+                    "sample_id": pair["sample_id"],
+                    "error": str(exc),
+                }
+            )
+
+            print(
+                f"[ERROR] "
+                f"{pair['sample_id']}: {exc}"
+            )
+
             continue
+
         all_x.extend(x)
         all_y.extend(y)
-        all_weights.extend(weights)
-        all_meta.extend(meta)
+        all_weights.extend(sample_weights)
+        all_metadata.extend(metadata)
         quality_reports.append(quality)
-        print(f"[OK] {pair['sample_id']} [{pair['split']}]: {len(x)} windows")
+
+        source_counts = Counter(
+            row["binary_source"]
+            for row in metadata
+        )
+
+        print(
+            f"[OK] {pair['sample_id']} "
+            f"[{pair['split']}]: "
+            f"{len(x)} windows "
+            f"{dict(source_counts)}"
+        )
+
+    if failed_samples:
+        raise SystemExit(
+            "Window generation failed for: "
+            + ", ".join(failed_samples)
+        )
 
     if not all_x:
-        raise SystemExit("No action windows were created. Check labels, split config and quality threshold.")
-    np.save(out_dir / "X.npy", np.stack(all_x).astype(np.float32))
-    np.save(out_dir / "y.npy", np.asarray(all_y, dtype=np.int64))
-    np.save(out_dir / "sample_weights.npy", np.asarray(all_weights, dtype=np.float32))
-    pd.DataFrame(all_meta).to_csv(out_dir / "metadata.csv", index=False, encoding="utf-8-sig")
-    save_json(out_dir / "class_names.json", list(data_cfg["classes"]))
-    save_json(out_dir / "quality_report.json", {
-        "recordings": quality_reports,
-        "raw_without_label": raw_without_label,
-        "label_without_raw": label_without_raw,
-    })
-    quality_rows = []
-    for report in quality_reports:
-        for rx in report.get("rx", []):
-            quality_rows.append({"sample_id": report.get("sample_id"), **rx})
-    pd.DataFrame(quality_rows).to_csv(out_dir / "csi_quality_report.csv", index=False, encoding="utf-8-sig")
-    counts = pd.DataFrame(all_meta).groupby(["split", "subject_id", "label"]).size()
-    print(f"Saved {len(all_x)} windows to {out_dir}")
-    print(counts)
+        raise SystemExit(
+            "No windows were created."
+        )
+
+    stacked_x = np.stack(all_x).astype(
+        np.float32
+    )
+
+    stacked_y = np.asarray(
+        all_y,
+        dtype=np.int64,
+    )
+
+    stacked_weights = np.asarray(
+        all_weights,
+        dtype=np.float32,
+    )
+
+    output_dir = Path(data["processed_dir"])
+    output_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    np.save(
+        output_dir / "X.npy",
+        stacked_x,
+    )
+
+    np.save(
+        output_dir / "y.npy",
+        stacked_y,
+    )
+
+    np.save(
+        output_dir / "sample_weights.npy",
+        stacked_weights,
+    )
+
+    metadata_df = pd.DataFrame(
+        all_metadata
+    )
+
+    metadata_df.to_csv(
+        output_dir / "metadata.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+
+    save_json(
+        output_dir / "class_names.json",
+        data["classes"],
+    )
+
+    save_json(
+        output_dir / "quality_report.json",
+        {
+            "recordings": quality_reports,
+            "raw_without_label": raw_only,
+            "label_without_raw": label_only,
+        },
+    )
+
+    class_counts = Counter(all_y)
+
+    source_counts = Counter(
+        row["binary_source"]
+        for row in all_metadata
+    )
+
+    split_counts = (
+        metadata_df
+        .groupby(
+            [
+                "split",
+                "label",
+                "binary_source",
+            ]
+        )
+        .size()
+    )
+
+    print(
+        f"\nSaved X={stacked_x.shape}"
+    )
+
+    print(
+        f"Class counts={class_counts}"
+    )
+
+    print(
+        f"Source counts={source_counts}"
+    )
+
+    print("\nSplit/source counts:")
+    print(split_counts)
 
 
 if __name__ == "__main__":

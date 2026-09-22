@@ -1,9 +1,7 @@
-"""Train the CSI action classifier on generated 3-second windows."""
-
+"""Train the binary CSI-only action classifier."""
 from __future__ import annotations
 
 import argparse
-import json
 import random
 import subprocess
 import sys
@@ -13,7 +11,7 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
-from sklearn.metrics import f1_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -26,23 +24,24 @@ def device_from_config(value: str) -> torch.device:
     return torch.device(value)
 
 
-def center_windows(x: np.ndarray) -> np.ndarray:
-    """Remove the static offset of every subcarrier within each window."""
-    return x - x.mean(axis=1, keepdims=True)
+def set_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
-def augment_batch(x: torch.Tensor, cfg: dict) -> torch.Tensor:
+def augment(x: torch.Tensor, cfg: dict) -> torch.Tensor:
     if not cfg.get("enabled", False):
         return x
     x = x.clone()
     scale = torch.empty((len(x), 1, 1), device=x.device).uniform_(
-        float(cfg["amplitude_scale_min"]),
-        float(cfg["amplitude_scale_max"]),
+        float(cfg["amplitude_scale_min"]), float(cfg["amplitude_scale_max"])
     )
     x *= scale
     x += torch.randn_like(x) * float(cfg["gaussian_noise_std"])
-    mask = torch.rand_like(x) < float(cfg["subcarrier_dropout"])
-    x.masked_fill_(mask, 0.0)
+    x.masked_fill_(torch.rand_like(x) < float(cfg["feature_dropout"]), 0.0)
     max_shift = int(cfg.get("time_shift_frames", 0))
     if max_shift:
         shifts = torch.randint(-max_shift, max_shift + 1, (len(x),), device=x.device)
@@ -52,205 +51,173 @@ def augment_batch(x: torch.Tensor, cfg: dict) -> torch.Tensor:
     return x
 
 
+def binary_metrics(truth: np.ndarray, probability: np.ndarray, threshold: float) -> dict:
+    prediction = (probability >= threshold).astype(np.int64)
+    return {
+        "accuracy": float(accuracy_score(truth, prediction)),
+        "precision": float(precision_score(truth, prediction, zero_division=0)),
+        "recall": float(recall_score(truth, prediction, zero_division=0)),
+        "f1": float(f1_score(truth, prediction, zero_division=0)),
+    }
+
+
 @torch.no_grad()
-def evaluate(model, loader, criterion, device):
+def collect_predictions(model, loader, criterion, device):
     model.eval()
+    truth, probabilities = [], []
     weighted_loss_sum = 0.0
     weight_sum = 0.0
-    truth, pred = [], []
     for x, y, sample_weight in loader:
         x, y, sample_weight = x.to(device), y.to(device), sample_weight.to(device)
         logits = model(x)
-        batch_loss = criterion(logits, y)
-        weighted_loss_sum += float((batch_loss * sample_weight).sum().item())
+        losses = criterion(logits, y)
+        weighted_loss_sum += float((losses * sample_weight).sum().item())
         weight_sum += float(sample_weight.sum().item())
-        truth.extend(y.cpu().tolist())
-        pred.extend(logits.argmax(1).cpu().tolist())
-    if not truth:
-        return {"loss": float("nan"), "macro_f1": float("nan"), "accuracy": float("nan")}
-    return {
-        "loss": weighted_loss_sum / max(weight_sum, 1e-9),
-        "macro_f1": f1_score(truth, pred, average="macro", zero_division=0),
-        "accuracy": float(np.mean(np.asarray(truth) == np.asarray(pred))),
-    }
+        truth.extend(y.int().cpu().tolist())
+        probabilities.extend(torch.sigmoid(logits).cpu().tolist())
+    return (
+        weighted_loss_sum / max(weight_sum, 1e-9),
+        np.asarray(truth, dtype=np.int64),
+        np.asarray(probabilities, dtype=np.float64),
+    )
+
+
+def choose_threshold(truth, probability, candidates, recall_floor):
+    rows = []
+    for threshold in candidates:
+        rows.append({"threshold": float(threshold), **binary_metrics(truth, probability, threshold)})
+    eligible = [row for row in rows if row["recall"] >= recall_floor]
+    if eligible:
+        selected = max(eligible, key=lambda row: (row["f1"], row["precision"], row["threshold"]))
+    else:
+        selected = max(rows, key=lambda row: (row["recall"], row["f1"], row["precision"]))
+    return float(selected["threshold"]), selected, rows
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=Path("configs/action_fusion.yaml"))
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/csi_stream"))
-    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--seed", type=int)
     parser.add_argument("--all-seeds", action="store_true")
     args = parser.parse_args()
-
     cfg = yaml.safe_load(args.config.read_text(encoding="utf-8"))
+
     if args.all_seeds and args.seed is None:
         for run_seed in cfg.get("seeds", [cfg.get("seed", 42)]):
-            run_dir = args.output_dir / f"seed_{run_seed}"
             subprocess.run(
-                [
-                    sys.executable,
-                    __file__,
-                    "--config",
-                    str(args.config),
-                    "--output-dir",
-                    str(run_dir),
-                    "--seed",
-                    str(run_seed),
-                ],
+                [sys.executable, __file__, "--config", str(args.config), "--output-dir",
+                 str(args.output_dir / f"seed_{run_seed}"), "--seed", str(run_seed)],
                 check=True,
             )
         return
 
     seed = int(args.seed if args.seed is not None else cfg.get("seed", 42))
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-    data_dir = Path(cfg["data"]["processed_dir"])
+    set_seed(seed)
+    data_cfg, training = cfg["data"], cfg["training"]
+    data_dir = Path(data_cfg["processed_dir"])
     x = np.load(data_dir / "X.npy").astype(np.float32)
-    y = np.load(data_dir / "y.npy").astype(np.int64)
+    y = np.load(data_dir / "y.npy").astype(np.float32)
     sample_weights = np.load(data_dir / "sample_weights.npy").astype(np.float32)
-    meta = pd.read_csv(data_dir / "metadata.csv")
-    class_names = json.loads((data_dir / "class_names.json").read_text(encoding="utf-8"))
-    if len(x) != len(y) or len(y) != len(meta):
-        raise SystemExit("X, y and metadata lengths differ")
+    metadata = pd.read_csv(data_dir / "metadata.csv")
+    if not (len(x) == len(y) == len(sample_weights) == len(metadata)):
+        raise SystemExit("X, y, sample_weights and metadata lengths differ")
+    expected_shape = (
+        round(float(data_cfg["window_seconds"]) * int(data_cfg["target_fps"])),
+        int(data_cfg["input_dim"]),
+    )
+    if x.shape[1:] != expected_shape:
+        raise SystemExit(f"Unexpected X shape: {x.shape}; expected (*, {expected_shape})")
 
     indices = {
-        name: np.flatnonzero(meta["split"].to_numpy() == name)
+        name: np.flatnonzero(metadata["split"].to_numpy() == name)
         for name in ("train", "val", "test")
     }
     if not len(indices["train"]) or not len(indices["val"]):
-        raise SystemExit("Both train and val splits need at least one window")
-
-    window_center = bool(
-        cfg.get("preprocessing", {}).get("window_center", False)
-    )
-
-    if window_center:
-        x = center_windows(x)
-
-    mean = x[indices["train"]].mean(axis=(0, 1), keepdims=True)
-    std = x[indices["train"]].std(axis=(0, 1), keepdims=True)
-    std[std < 1e-6] = 1.0
-    x = (x - mean) / std
-
-    training = cfg["training"]
+        raise SystemExit("Train and val splits must both be non-empty")
     loaders = {}
     for name, idx in indices.items():
-        dataset = TensorDataset(
-            torch.from_numpy(x[idx]),
-            torch.from_numpy(y[idx]),
-            torch.from_numpy(sample_weights[idx]),
-        )
         loaders[name] = DataLoader(
-            dataset,
+            TensorDataset(torch.from_numpy(x[idx]), torch.from_numpy(y[idx]), torch.from_numpy(sample_weights[idx])),
             batch_size=int(training["batch_size"]),
             shuffle=name == "train",
             num_workers=int(training.get("num_workers", 0)),
         )
 
-    model = CSIActionClassifier(num_classes=len(class_names), **cfg["model"])
     device = device_from_config(str(training.get("device", "auto")))
-    model.to(device)
-
-    counts = np.bincount(y[indices["train"]], minlength=len(class_names)).astype(np.float32)
-    weights = counts.sum() / np.maximum(counts, 1.0)
-    weights = weights / weights.mean()
-    criterion = nn.CrossEntropyLoss(
-        weight=torch.tensor(weights, device=device), reduction="none"
+    model = CSIActionClassifier(**cfg["model"]).to(device)
+    configured_pos_weight = float(training.get("pos_weight", 1.0))
+    criterion = nn.BCEWithLogitsLoss(
+        pos_weight=torch.tensor(configured_pos_weight, device=device), reduction="none"
     )
+    print(f"Device={device}; pos_weight={configured_pos_weight:.4f}")
     optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=float(training["learning_rate"]),
-        weight_decay=float(training["weight_decay"]),
+        model.parameters(), lr=float(training["learning_rate"]), weight_decay=float(training["weight_decay"])
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,
-        mode="max",
-        factor=float(training.get("scheduler_factor", 0.5)),
-        patience=int(training.get("scheduler_patience", 4)),
+        optimizer, mode="max", factor=float(training.get("scheduler_factor", 0.5)),
+        patience=int(training.get("scheduler_patience", 4))
     )
-
+    threshold_candidates = [
+        float(value) for value in training.get(
+            "threshold_candidates", [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80]
+        )
+    ]
+    recall_floor = float(training.get("recall_floor", 0.85))
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    best_f1, stale = -1.0, 0
-    history = []
+    best_f1, stale_epochs, history = -1.0, 0, []
+
     for epoch in range(1, int(training["epochs"]) + 1):
         model.train()
         for batch_x, batch_y, batch_weight in loaders["train"]:
-            batch_x = batch_x.to(device)
-            batch_y = batch_y.to(device)
-            batch_weight = batch_weight.to(device)
-            batch_x = augment_batch(batch_x, cfg.get("augmentation", {}))
+            batch_x = augment(batch_x.to(device), cfg.get("augmentation", {}))
+            batch_y, batch_weight = batch_y.to(device), batch_weight.to(device)
             optimizer.zero_grad(set_to_none=True)
-            per_sample_loss = criterion(model(batch_x), batch_y)
-            loss = (per_sample_loss * batch_weight).sum() / batch_weight.sum().clamp_min(1e-6)
+            losses = criterion(model(batch_x), batch_y)
+            loss = (losses * batch_weight).sum() / batch_weight.sum().clamp_min(1e-6)
             loss.backward()
-            nn.utils.clip_grad_norm_(
-                model.parameters(), float(training.get("gradient_clip", 1.0))
-            )
+            nn.utils.clip_grad_norm_(model.parameters(), float(training["gradient_clip"]))
             optimizer.step()
 
-        train_metrics = evaluate(model, loaders["train"], criterion, device)
-        val_metrics = evaluate(model, loaders["val"], criterion, device)
-        scheduler.step(val_metrics["macro_f1"])
-        history.append(
-            {
-                "epoch": epoch,
-                **{f"train_{k}": v for k, v in train_metrics.items()},
-                **{f"val_{k}": v for k, v in val_metrics.items()},
-            }
+        train_loss, train_truth, train_probability = collect_predictions(model, loaders["train"], criterion, device)
+        val_loss, val_truth, val_probability = collect_predictions(model, loaders["val"], criterion, device)
+        selected_threshold, val_metrics, threshold_table = choose_threshold(
+            val_truth, val_probability, threshold_candidates, recall_floor
         )
+        train_metrics = binary_metrics(train_truth, train_probability, selected_threshold)
+        scheduler.step(val_metrics["f1"])
+        history.append({
+            "epoch": epoch, "selected_threshold": selected_threshold, "train_loss": train_loss,
+            **{f"train_{key}": value for key, value in train_metrics.items()}, "val_loss": val_loss,
+            **{f"val_{key}": value for key, value in val_metrics.items() if key != "threshold"},
+            "learning_rate": optimizer.param_groups[0]["lr"],
+        })
         print(
-            f"Epoch {epoch:03d} train_f1={train_metrics['macro_f1']:.4f} "
-            f"val_f1={val_metrics['macro_f1']:.4f}"
+            f"Epoch {epoch:03d} threshold={selected_threshold:.2f} "
+            f"train_f1={train_metrics['f1']:.4f} val_precision={val_metrics['precision']:.4f} "
+            f"val_recall={val_metrics['recall']:.4f} val_f1={val_metrics['f1']:.4f}"
         )
 
-        score = val_metrics["macro_f1"]
-        if score > best_f1:
-            best_f1, stale = score, 0
+        if val_metrics["f1"] > best_f1:
+            best_f1, stale_epochs = val_metrics["f1"], 0
             try:
-                git_commit = subprocess.check_output(
-                    ["git", "rev-parse", "HEAD"], text=True
-                ).strip()
+                commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
             except Exception:
-                git_commit = "unknown"
-            manifest_path = Path("data/splits/split_manifest.csv")
-            split_manifest = (
-                pd.read_csv(manifest_path).to_dict(orient="records")
-                if manifest_path.exists()
-                else []
-            )
-            torch.save(
-                {
-                    "model_state": model.state_dict(),
-                    "model_config": cfg["model"],
-                    "class_names": class_names,
-                    "class_to_id": {name: i for i, name in enumerate(class_names)},
-                    "mean": mean.squeeze().astype(np.float32),
-                    "std": std.squeeze().astype(np.float32),
-                    "preprocessing": {
-                        "window_center": window_center
-                    },
-                    "target_fps": cfg["data"]["target_fps"],                    "window_seconds": cfg["data"]["window_seconds"],
-                    "config": cfg,
-                    "seed": seed,
-                    "postprocess": cfg.get("postprocess", {}),
-                    "git_commit": git_commit,
-                    "split_manifest": split_manifest,
-                },
-                args.output_dir / "best.pt",
-            )
+                commit = "unknown"
+            torch.save({
+                "model_state": model.state_dict(), "model_config": cfg["model"],
+                "class_names": data_cfg["classes"], "threshold": selected_threshold,
+                "threshold_selection": {"recall_floor": recall_floor, "candidates": threshold_table, "selected": val_metrics},
+                "config": cfg, "seed": seed, "git_commit": commit,
+            }, args.output_dir / "best.pt")
         else:
-            stale += 1
-            if stale >= int(training["patience"]):
+            stale_epochs += 1
+            if stale_epochs >= int(training["patience"]):
                 print("Early stopping")
                 break
 
     pd.DataFrame(history).to_csv(args.output_dir / "history.csv", index=False)
-    print(f"Best validation macro-F1: {best_f1:.4f}")
+    print(f"Best validation fall-F1: {best_f1:.4f}")
 
 
 if __name__ == "__main__":

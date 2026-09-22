@@ -1,142 +1,148 @@
-"""Evaluate a trained CSI Stream checkpoint."""
-
+"""Evaluate raw and temporally confirmed CSI-only binary predictions."""
 from __future__ import annotations
 
 import argparse
 import json
+from collections import deque
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.metrics import classification_report, confusion_matrix, precision_score, recall_score
+import yaml
+from sklearn.metrics import classification_report, confusion_matrix
+from torch.utils.data import DataLoader, TensorDataset
 
 from models.csi_encoder import CSIActionClassifier
-from postprocess_state_machine import ActionStateMachine
+
+
+def make_report(truth: np.ndarray, prediction: np.ndarray) -> dict:
+    report = classification_report(
+        truth, prediction, labels=[0, 1], target_names=["standing", "falling"],
+        output_dict=True, zero_division=0,
+    )
+    report["confusion_matrix"] = confusion_matrix(truth, prediction, labels=[0, 1]).tolist()
+    return report
+
+
+def apply_temporal_confirmation(metadata, probabilities, alpha, threshold, confirm_count, confirm_window):
+    smoothed = np.zeros(len(probabilities), dtype=np.float64)
+    confirmed = np.zeros(len(probabilities), dtype=np.int64)
+    work = metadata.copy()
+    work["_position"] = np.arange(len(work))
+    work["_probability"] = probabilities
+    for _, group in work.groupby("sample_id", sort=False):
+        group = group.sort_values("center_sec")
+        previous_ema = None
+        recent = deque(maxlen=confirm_window)
+        for position, probability in zip(group["_position"], group["_probability"]):
+            position, probability = int(position), float(probability)
+            ema = probability if previous_ema is None else alpha * probability + (1.0 - alpha) * previous_ema
+            previous_ema = ema
+            smoothed[position] = ema
+            recent.append(int(ema >= threshold))
+            confirmed[position] = int(len(recent) >= confirm_window and sum(recent) >= confirm_count)
+    return smoothed, confirmed
+
+
+def source_reports(metadata, truth, prediction):
+    if "binary_source" not in metadata.columns:
+        return {}
+    result = {}
+    sources = metadata["binary_source"].fillna("unknown").astype(str).to_numpy()
+    for source in sorted(set(sources)):
+        mask = sources == source
+        result[source] = {
+            "support": int(mask.sum()),
+            "correct": int((truth[mask] == prediction[mask]).sum()),
+            "predicted_falling": int(prediction[mask].sum()),
+            "accuracy": float((truth[mask] == prediction[mask]).mean()),
+        }
+    return result
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=Path, default=Path("configs/action_fusion.yaml"))
     parser.add_argument("--checkpoint", type=Path, default=Path("outputs/csi_stream/best.pt"))
-    parser.add_argument("--data-dir", type=Path, default=Path("data/processed/csi_stream"))
-    parser.add_argument("--split", choices=["train", "val", "test"], default="test")
-    parser.add_argument("--output", type=Path, default=Path("outputs/csi_stream/test_metrics.json"))
+    parser.add_argument("--split", choices=["val", "test"], default="test")
+    parser.add_argument("--output", type=Path, default=Path("outputs/csi_stream/evaluation.json"))
     args = parser.parse_args()
 
-    checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
-    model = CSIActionClassifier(
-        num_classes=len(checkpoint["class_names"]), **checkpoint["model_config"]
-    )
+    cfg = yaml.safe_load(args.config.read_text(encoding="utf-8"))
+    data_dir = Path(cfg["data"]["processed_dir"])
+    x = np.load(data_dir / "X.npy").astype(np.float32)
+    y = np.load(data_dir / "y.npy").astype(np.int64)
+    metadata = pd.read_csv(data_dir / "metadata.csv")
+    indices = np.flatnonzero(metadata["split"].to_numpy() == args.split)
+    if not len(indices):
+        raise SystemExit(f"No {args.split} windows")
+
+    split_x, split_y = x[indices], y[indices]
+    split_metadata = metadata.iloc[indices].reset_index(drop=True)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
+    model = CSIActionClassifier(**checkpoint["model_config"]).to(device)
     model.load_state_dict(checkpoint["model_state"])
     model.eval()
-
-    x = np.load(args.data_dir / "X.npy").astype(np.float32)
-    y = np.load(args.data_dir / "y.npy").astype(np.int64)
-    meta = pd.read_csv(args.data_dir / "metadata.csv")
-    idx = np.flatnonzero(meta["split"].to_numpy() == args.split)
-    if not len(idx):
-        raise SystemExit(f"Split {args.split!r} is empty")
-
-    x = x[idx]
-    preprocessing = checkpoint.get("preprocessing", {})
-    if preprocessing.get("window_center", False):
-        x = x - x.mean(axis=1, keepdims=True)
-    x = (
-        x - checkpoint["mean"][None, None, :]
-    ) / checkpoint["std"][None, None, :]
-
+    loader = DataLoader(
+        TensorDataset(torch.from_numpy(split_x)),
+        batch_size=int(cfg["training"].get("batch_size", 64)), shuffle=False,
+    )
+    probabilities = []
     with torch.no_grad():
-        probabilities = torch.softmax(model(torch.from_numpy(x)), dim=1).numpy()
-        pred = probabilities.argmax(1)
+        for (batch_x,) in loader:
+            probabilities.extend(torch.sigmoid(model(batch_x.to(device))).cpu().tolist())
+    probabilities = np.asarray(probabilities, dtype=np.float64)
 
-    names = checkpoint["class_names"]
-    labels = list(range(len(names)))
-    report = classification_report(
-        y[idx], pred, labels=labels, target_names=names,
-        output_dict=True, zero_division=0,
-    )
-    fall_id = names.index("falling")
-    breakdown = {}
-    selected_meta = meta.iloc[idx].reset_index(drop=True)
-    for column in ("subject_id", "sample_id"):
-        breakdown[column] = {}
-        for value, rows in selected_meta.groupby(column).groups.items():
-            rows = np.asarray(list(rows), dtype=int)
-            breakdown[column][str(value)] = classification_report(
-                y[idx][rows], pred[rows], labels=labels, target_names=names,
-                output_dict=True, zero_division=0,
-            )
+    checkpoint_threshold = float(checkpoint.get("threshold", 0.5))
+    raw_prediction = (probabilities >= checkpoint_threshold).astype(np.int64)
+    raw_report = make_report(split_y, raw_prediction)
+    raw_report["threshold"] = checkpoint_threshold
+    raw_report["source_breakdown"] = source_reports(split_metadata, split_y, raw_prediction)
 
-    post_cfg = checkpoint.get(
-        "postprocess", checkpoint.get("config", {}).get("postprocess", {})
-    )
-    true_events: set[str] = set()
-    detected_events: set[str] = set()
-    false_events = 0
-    unknown_count = 0
-    latencies = []
-    duration_sec = 0.0
-    for _, rows in selected_meta.groupby("sample_id").groups.items():
-        rows = np.asarray(list(rows), dtype=int)
-        rows = rows[np.argsort(selected_meta.iloc[rows]["center_sec"].to_numpy())]
-        sample_meta = selected_meta.iloc[rows]
-        machine = ActionStateMachine(names, post_cfg)
-        sample_true = {
-            str(e)
-            for e in sample_meta.loc[sample_meta["label"] == "falling", "event_id"]
-            if str(e)
-        }
-        true_events.update(sample_true)
-        if len(sample_meta):
-            duration_sec += float(
-                sample_meta["end_sec"].max() - sample_meta["start_sec"].min()
-            )
-        for local_row in rows:
-            row = selected_meta.iloc[local_row]
-            state = machine.update(float(row["center_sec"]), probabilities[local_row])
-            unknown_count += int(state["pred_smoothed"] == "unknown")
-            if state["event_id"]:
-                truth_event = str(row.get("event_id", ""))
-                if truth_event and truth_event in sample_true:
-                    if truth_event not in detected_events:
-                        onset = float(
-                            sample_meta.loc[
-                                sample_meta["event_id"].astype(str) == truth_event,
-                                "start_sec",
-                            ].min()
-                        )
-                        latencies.append(float(row["center_sec"]) - onset)
-                    detected_events.add(truth_event)
-                else:
-                    false_events += 1
+    post_cfg = cfg.get("postprocess", {})
+    if bool(post_cfg.get("enabled", True)):
+        alpha = float(post_cfg.get("ema_alpha", 0.6))
+        post_threshold = max(checkpoint_threshold, float(post_cfg.get("fall_threshold", checkpoint_threshold)))
+        confirm_count = int(post_cfg.get("confirm_count", 3))
+        confirm_window = int(post_cfg.get("confirm_window", 5))
+        if not 1 <= confirm_count <= confirm_window:
+            raise SystemExit("postprocess.confirm_count must be between 1 and confirm_window")
+        smoothed_probability, post_prediction = apply_temporal_confirmation(
+            split_metadata, probabilities, alpha, post_threshold, confirm_count, confirm_window
+        )
+        post_report = make_report(split_y, post_prediction)
+        post_report.update({
+            "ema_alpha": alpha, "threshold": post_threshold, "confirm_count": confirm_count,
+            "confirm_window": confirm_window,
+            "source_breakdown": source_reports(split_metadata, split_y, post_prediction),
+        })
+    else:
+        smoothed_probability, post_prediction = probabilities.copy(), raw_prediction.copy()
+        post_report = None
 
-    event_recall = len(detected_events) / len(true_events) if true_events else 0.0
-    result = {
+    rows = split_metadata.copy()
+    rows["true_label_id"] = split_y
+    rows["fall_probability"] = probabilities
+    rows["raw_prediction"] = raw_prediction
+    rows["smoothed_probability"] = smoothed_probability
+    rows["postprocessed_prediction"] = post_prediction
+    prediction_path = args.output.with_name(args.output.stem + "_predictions.csv")
+    prediction_path.parent.mkdir(parents=True, exist_ok=True)
+    rows.to_csv(prediction_path, index=False, encoding="utf-8-sig")
+
+    report = {
         "split": args.split,
-        "window_count": int(len(idx)),
-        "fall_recall": recall_score(y[idx] == fall_id, pred == fall_id, zero_division=0),
-        "fall_precision": precision_score(y[idx] == fall_id, pred == fall_id, zero_division=0),
-        "classification_report": report,
-        "confusion_matrix": confusion_matrix(y[idx], pred, labels=labels).tolist(),
-        "breakdown": breakdown,
-        "event_metrics": {
-            "true_fall_events": len(true_events),
-            "detected_fall_events": len(detected_events),
-            "event_recall": event_recall,
-            "false_alarms_per_hour": false_events / max(duration_sec / 3600.0, 1e-9),
-            "false_alarms_per_hour_is_reference_only": True,
-            "mean_detection_latency_sec": float(np.mean(latencies)) if latencies else None,
-            "unknown_rate": unknown_count / len(selected_meta) if len(selected_meta) else 0.0,
-        },
+        "checkpoint": str(args.checkpoint),
+        "raw_window_metrics": raw_report,
+        "postprocessed_window_metrics": post_report,
+        "prediction_csv": str(prediction_path),
+        "warning": "Threshold was selected on validation data; test data was not used for selection. Validation has few hard negatives.",
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(
-        classification_report(
-            y[idx], pred, labels=labels, target_names=names, zero_division=0
-        )
-    )
-    print(f"Saved: {args.output}")
+    args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

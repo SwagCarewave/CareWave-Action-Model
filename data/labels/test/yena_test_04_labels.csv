@@ -1,0 +1,5 @@
+video_name,start_sec,end_sec,label
+yena_test_04.mp4,0,1,ignore
+yena_test_04.mp4,1,4,falling
+yena_test_04.mp4,4,8,lying
+yena_test_04.mp4,8,9,ignore
