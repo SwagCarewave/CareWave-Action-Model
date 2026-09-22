@@ -1,0 +1,17 @@
+video_name,start_sec,end_sec,label
+sujin_test_03.mp4,0,1,ignore
+sujin_test_03.mp4,1,15,standing
+sujin_test_03.mp4,15,33,walking
+sujin_test_03.mp4,33,41,transition
+sujin_test_03.mp4,41,43,transition
+sujin_test_03.mp4,43,45,transition
+sujin_test_03.mp4,45,47,transition
+sujin_test_03.mp4,47,76,raising_arms
+sujin_test_03.mp4,76,96,walking
+sujin_test_03.mp4,96,97,turning_body
+sujin_test_03.mp4,97,100,turning_body
+sujin_test_03.mp4,100,102,turning_body
+sujin_test_03.mp4,102,104,turning_body
+sujin_test_03.mp4,104,111,turning_body
+sujin_test_03.mp4,111,118,standing
+sujin_test_03.mp4,118,120,ignore

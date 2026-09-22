@@ -1,63 +1,58 @@
 seed: 42
-seeds: [42, 52, 62]
-
+seeds:
+- 42
+- 52
+- 62
 data:
   raw_csi_dir: data/raw_csi
   labels_dir: data/labels
   events_path: data/metadata/action_events.csv
-  processed_dir: data/processed/csi_stream_binary_hard_negative
+  processed_dir: data/processed/csi_stream_walk_v1
   scaler_path: data/preprocessing/csi_robust_scaler_train_only.npz
-
   target_fps: 10
-  rx_ids: [RX1, RX2, RX3]
+  rx_ids:
+  - RX1
+  - RX2
+  - RX3
   subcarriers_per_rx: 52
   input_dim: 315
-
   window_seconds: 3.0
   stride_seconds: 0.5
   max_time_gap_sec: 0.15
-
-  classes: [standing, falling]
-
+  classes:
+  - standing
+  - falling
   class_to_id:
     standing: 0
     falling: 1
-
   fall_pre_onset_sec: 0.5
   fall_post_impact_sec: 1.0
   fall_center_pre_onset_sec: 0.3
   fall_center_post_impact_sec: 0.8
-  fall_overlap_threshold: 0.30
-
-  standing_ratio_threshold: 0.80
-  non_fall_ratio_threshold: 0.80
-
+  fall_overlap_threshold: 0.3
+  standing_ratio_threshold: 0.8
+  non_fall_ratio_threshold: 0.8
   hard_negative_labels:
-    - walking
-    - turning_body
-    - lowering_arms
-    - raising_arms
-    - turning_head
-    - adjusting_position
-
+  - walking
+  - turning_body
+  - lowering_arms
+  - raising_arms
+  - turning_head
+  - adjusting_position
   hard_negative_weight: 4.0
-
   excluded_negative_labels:
-    - lying
-    - getting_up
-    - transition
-    - slow_lying_down
-    - ignore
-
-  boundary_weight: 0.50
+  - lying
+  - getting_up
+  - transition
+  - slow_lying_down
+  - ignore
+  boundary_weight: 0.5
   require_reviewed_events: true
-
   split:
     mode: session
     test_dir_name: test
-    val_ratio: 0.20
+    val_ratio: 0.2
     seed: 42
-
 model:
   input_dim: 315
   conv_channels: 128
@@ -66,8 +61,7 @@ model:
   gru_hidden: 96
   gru_layers: 1
   attention_hidden: 64
-  dropout: 0.30
-
+  dropout: 0.3
 training:
   batch_size: 64
   epochs: 100
@@ -79,19 +73,17 @@ training:
   scheduler_patience: 4
   num_workers: 0
   device: auto
-
   pos_weight: 1.0
-  threshold: 0.50
+  threshold: 0.5
   threshold_candidates:
-    - 0.50
-    - 0.55
-    - 0.60
-    - 0.65
-    - 0.70
-    - 0.75
-    - 0.80
+  - 0.5
+  - 0.55
+  - 0.6
+  - 0.65
+  - 0.7
+  - 0.75
+  - 0.8
   recall_floor: 0.85
-
 augmentation:
   enabled: true
   gaussian_noise_std: 0.02
@@ -99,12 +91,10 @@ augmentation:
   amplitude_scale_min: 0.95
   amplitude_scale_max: 1.05
   time_shift_frames: 1
-
 preprocessing:
   use_first_model_scaler: true
   clip_min: -10.0
   clip_max: 10.0
-
 postprocess:
   enabled: true
   ema_alpha: 0.6

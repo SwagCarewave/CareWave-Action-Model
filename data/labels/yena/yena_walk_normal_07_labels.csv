@@ -1,0 +1,4 @@
+video_name,start_sec,end_sec,label
+yena_walk_normal_07.mp4,0,1,ignore
+yena_walk_normal_07.mp4,1,12,walking
+yena_walk_normal_07.mp4,12,13,ignore
