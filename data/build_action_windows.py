@@ -17,12 +17,15 @@ if str(ROOT) not in sys.path:
 
 from build_action_labels import assign_splits, discover_pairs
 from csi_dataset import (
+    fit_robust_scaler,
     labels_for_times,
     load_config,
-    load_csi_10hz,
+    load_csi_features,
     load_labels,
+    load_scaler,
     save_json,
     scale_features,
+    transform_window,
 )
 
 
@@ -48,17 +51,21 @@ def build_recording(
     data = cfg["data"]
     preprocessing = cfg["preprocessing"]
 
-    frame, raw_features, quality = load_csi_10hz(
+    frame, raw_features, quality = load_csi_features(
         Path(pair["raw_path"]),
         data,
     )
 
-    features = scale_features(
-        raw_features,
-        Path(data["scaler_path"]),
-        float(preprocessing["clip_min"]),
-        float(preprocessing["clip_max"]),
-    )
+    if preprocessing.get("fit_scaler", False):
+        # Scaled in main() after fitting on train windows only.
+        features = raw_features
+    else:
+        features = scale_features(
+            raw_features,
+            Path(data["scaler_path"]),
+            float(preprocessing["clip_min"]),
+            float(preprocessing["clip_max"]),
+        )
 
     intervals = load_labels(Path(pair["label_path"]))
 
@@ -98,6 +105,11 @@ def build_recording(
     non_fall_labels = {
         "standing",
         *hard_negative_labels,
+    }
+
+    aux_negative_labels = {
+        str(label).strip().lower()
+        for label in data.get("train_aux_negative_labels", [])
     }
 
     xs: list[np.ndarray] = []
@@ -241,6 +253,21 @@ def build_recording(
                 binary_source = "standing"
                 sample_weight = 1.0
 
+        elif (
+            aux_negative_labels
+            and pair["split"] == "train"
+            and not any_fall_overlap
+            and float(np.mean(np.isin(labels, list(non_fall_labels | aux_negative_labels))))
+            >= non_fall_threshold
+        ):
+            # Train-only: lying/getting-up windows give fall recordings negatives too,
+            # so recording identity alone cannot predict the label. Val/test are unchanged.
+            target = 0
+            event_id = ""
+            fall_ratio = 0.0
+            binary_source = "aux_negative"
+            sample_weight = float(data.get("aux_negative_weight", 1.0))
+
         else:
             if any_fall_overlap:
                 dropped["fall_boundary_ambiguous"] += 1
@@ -251,7 +278,7 @@ def build_recording(
 
             continue
 
-        xs.append(features[first:last])
+        xs.append(transform_window(features[first:last], data))
         ys.append(target)
         weights.append(sample_weight)
 
@@ -491,6 +518,22 @@ def main() -> None:
         all_weights,
         dtype=np.float32,
     )
+
+    preprocessing = cfg["preprocessing"]
+
+    if preprocessing.get("fit_scaler", False):
+        train_mask = np.asarray(
+            [row["split"] == "train" for row in all_metadata]
+        )
+        scaler_path = Path(data["scaler_path"])
+        fit_robust_scaler(stacked_x[train_mask], scaler_path)
+        median, iqr = load_scaler(scaler_path, stacked_x.shape[-1])
+        stacked_x = np.clip(
+            (stacked_x - median) / iqr,
+            float(preprocessing["clip_min"]),
+            float(preprocessing["clip_max"]),
+        ).astype(np.float32)
+        print(f"Fitted train-only scaler: {scaler_path}")
 
     output_dir = Path(data["processed_dir"])
     output_dir.mkdir(

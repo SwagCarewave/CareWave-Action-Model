@@ -19,7 +19,8 @@ from csi_dataset import enrich_intervals, load_config, load_labels
 
 REQUIRED = {"video_name", "start_sec", "end_sec", "label"}
 ALLOWED = {"standing", "falling", "lying", "transition", "getting_up", "ignore", "slow_lying_down",
-           "adjusting_position", "turning_body", "lowering_arms", "raising_arms", "turning_head", "walking"}
+           "adjusting_position", "turning_body", "lowering_arms", "raising_arms", "turning_head", "walking",
+           "bending_over", "straightening_up"}
 
 
 def sample_id_from_raw(path: Path) -> str:

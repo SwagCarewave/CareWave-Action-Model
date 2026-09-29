@@ -118,3 +118,5 @@ yena_fall_stay_down_04,yena,yena_fall_stay_down_04,unknown,yena_fall_stay_down_0
 yena_fall_stay_down_05,yena,yena_fall_stay_down_05,unknown,yena_fall_stay_down_05_fall_001,1,3,4.0,0.5,unknown,needs_review
 yena_test_02,yena,yena_test_02,unknown,yena_test_02_fall_001,96,99,100.0,0.5,unknown,needs_review
 yena_test_04,yena,yena_test_04,unknown,yena_test_04_fall_001,1,4,5.0,0.5,unknown,needs_review
+csi_test_01,csi,csi_test_01,unknown,csi_test_01_fall_001,94,96,97.0,0.5,unknown,needs_review
+csi_test_01,csi,csi_test_01,unknown,csi_test_01_fall_002,104,107,108.0,0.5,unknown,needs_review

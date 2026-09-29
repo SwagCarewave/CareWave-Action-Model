@@ -125,6 +125,163 @@ def load_csi_10hz(path: Path, data_cfg: dict) -> tuple[pd.DataFrame, np.ndarray,
     return frame, features, quality
 
 
+def assign_packet_streams(shapes: np.ndarray, init_packets: int = 60, ema_alpha: float = 0.05) -> np.ndarray:
+    """Causally split one receiver's packets into its two interleaved spectral streams.
+
+    Each RX receives two packet types whose amplitude spectra are strongly anti-correlated
+    and alternate at random. Averaging them together (as load_csi_10hz does) turns the
+    switching into large frame-to-frame noise that hides body motion. Centroids start from
+    2-means on the first packets, then follow slow drift with an EMA; each packet only uses
+    past data, so the same code works for streaming inference.
+    """
+    from sklearn.cluster import KMeans
+
+    if len(shapes) < 4:
+        raise ValueError("Too few packets to split streams")
+    init = shapes[:max(4, min(init_packets, len(shapes)))]
+    centroids = KMeans(2, n_init=5, random_state=0).fit(init).cluster_centers_
+    centroids /= np.linalg.norm(centroids, axis=1, keepdims=True)
+    # Canonical order so stream 0/1 means the same thing across recordings.
+    half = shapes.shape[1] // 2
+    if (centroids[0, :half] ** 2).sum() < (centroids[1, :half] ** 2).sum():
+        centroids = centroids[::-1].copy()
+    labels = np.empty(len(shapes), dtype=np.int64)
+    for i, shape in enumerate(shapes):
+        k = int(np.argmax(centroids @ shape))
+        labels[i] = k
+        centroids[k] = (1.0 - ema_alpha) * centroids[k] + ema_alpha * shape
+        centroids[k] /= np.linalg.norm(centroids[k])
+    return labels
+
+
+def stream_separation(shapes: np.ndarray, labels: np.ndarray) -> float | None:
+    """Median of (cosine to own stream mean - cosine to the other stream mean).
+
+    Higher is cleaner (median 0.20 over the 2026-06 recordings); values near 0 mean the
+    two streams were barely separable and the recording's stream features should be checked.
+    """
+    if (labels == 0).sum() < 2 or (labels == 1).sum() < 2:
+        return None
+    means = np.stack([shapes[labels == k].mean(axis=0) for k in (0, 1)])
+    means /= np.linalg.norm(means, axis=1, keepdims=True)
+    similarity = shapes @ means.T
+    own = similarity[np.arange(len(labels)), labels]
+    other = similarity[np.arange(len(labels)), 1 - labels]
+    return round(float(np.median(own - other)), 4)
+
+
+def load_csi_stream_split_10hz(path: Path, data_cfg: dict) -> tuple[pd.DataFrame, np.ndarray, dict]:
+    """Per RX and packet stream: unit-norm spectrum (52) and packet-to-packet shape change (1).
+
+    Feature layout: for rx in rx_ids, for stream in (0, 1): 52 shape values; then
+    for rx, for stream: 1 motion value. 3 RX -> 312 + 6 = 318 dimensions.
+    """
+    fps = int(data_cfg["target_fps"])
+    rx_ids = list(data_cfg.get("rx_ids", ["RX1", "RX2", "RX3"]))
+    n_sub = int(data_cfg.get("subcarriers_per_rx", 52))
+    sub_cols = [f"sub_{i}" for i in range(n_sub)]
+    stream_cfg = data_cfg.get("stream_split", {})
+    raw = read_raw_csi(path, sub_cols)
+    missing = {"timestamp", "rx", *sub_cols} - set(raw.columns)
+    if missing:
+        raise ValueError(f"{path.name}: missing columns {sorted(missing)}")
+    raw["timestamp"] = pd.to_datetime(raw["timestamp"], utc=True, errors="coerce")
+    raw["rx"] = raw["rx"].astype(str).str.strip().str.upper()
+    raw[sub_cols] = raw[sub_cols].apply(pd.to_numeric, errors="coerce")
+    raw = raw.dropna(subset=["timestamp"])
+    raw = raw[raw["rx"].isin(rx_ids)].sort_values("timestamp", kind="stable")
+    if raw.empty:
+        raise ValueError(f"{path.name}: no usable CSI rows")
+    origin = raw["timestamp"].min()
+    raw["time_sec_raw"] = (raw["timestamp"] - origin).dt.total_seconds()
+    last_bin = int(np.rint(raw["time_sec_raw"].max() * fps))
+    full_bins = np.arange(0, last_bin + 1)
+    shape_parts, motion_parts, quality_rx = [], [], []
+    for rx in rx_ids:
+        part = raw[raw["rx"].eq(rx)]
+        # Short legacy rows lost trailing values; keep only complete spectra for shape tracking.
+        part = part[part[sub_cols].notna().all(axis=1)]
+        amplitude = part[sub_cols].to_numpy(np.float64)
+        norm = np.linalg.norm(amplitude, axis=1)
+        part, amplitude, norm = part[norm > 0], amplitude[norm > 0], norm[norm > 0]
+        shapes = amplitude / norm[:, None]
+        source_column = stream_cfg.get("source_column")
+        if source_column and source_column in part.columns:
+            # Recorded packet source (e.g. transmitter MAC): use it instead of shape clustering.
+            sources = part[source_column].astype(str).str.strip()
+            top = sources.value_counts().index[:2].sort_values()
+            if len(top) != 2:
+                raise ValueError(f"{path.name}: {rx} needs 2 packet sources in {source_column}, found {len(top)}")
+            keep = sources.isin(top).to_numpy()
+            part, shapes = part[keep], shapes[keep]
+            labels = (sources[keep] == top[1]).to_numpy().astype(np.int64)
+            assignment = f"column:{source_column}"
+        else:
+            labels = assign_packet_streams(shapes, int(stream_cfg.get("init_packets", 60)),
+                                           float(stream_cfg.get("ema_alpha", 0.05)))
+            assignment = "shape_clustering"
+        bins = np.rint(part["time_sec_raw"].to_numpy() * fps).astype(int)
+        rx_quality = {"rx": rx, "packets": int(len(shapes)), "stream_assignment": assignment,
+                      "stream_separation": stream_separation(shapes, labels)}
+        for stream in (0, 1):
+            mask = labels == stream
+            stream_shapes, stream_bins = shapes[mask], bins[mask]
+            change = np.full(len(stream_shapes), np.nan)
+            change[1:] = np.linalg.norm(np.diff(stream_shapes, axis=0), axis=1)
+            frame = pd.DataFrame(stream_shapes, columns=sub_cols)
+            frame["motion"] = change
+            frame["time_bin"] = stream_bins
+            binned = frame.groupby("time_bin").mean().reindex(full_bins)
+            rx_quality[f"stream{stream}_packets"] = int(mask.sum())
+            rx_quality[f"stream{stream}_missing_ratio_before_fill"] = float(binned[sub_cols].isna().all(axis=1).mean())
+            binned = binned.interpolate(axis=0, limit_direction="both")
+            if binned.isna().any().any():
+                raise ValueError(f"{path.name}: {rx} stream {stream} contains unfillable missing values")
+            shape_parts.append(binned[sub_cols].to_numpy(np.float32))
+            motion_parts.append(binned[["motion"]].to_numpy(np.float32))
+        quality_rx.append(rx_quality)
+    features = np.concatenate(shape_parts + motion_parts, axis=1).astype(np.float32)
+    expected = int(data_cfg.get("input_dim", features.shape[1]))
+    if features.shape[1] != expected:
+        raise ValueError(f"Expected {expected} features, got {features.shape[1]}")
+    frame = pd.DataFrame({"time_sec": full_bins.astype(np.float64) / fps})
+    quality = {"sample_id": path.stem.removesuffix("_csi_raw"), "frame_count": len(frame), "rx": quality_rx,
+               "max_time_gap_sec": float(raw.groupby("rx")["time_sec_raw"].diff().max())}
+    return frame, features, quality
+
+
+def load_csi_features(path: Path, data_cfg: dict) -> tuple[pd.DataFrame, np.ndarray, dict]:
+    if str(data_cfg.get("feature_mode", "legacy_315")) == "stream_split":
+        return load_csi_stream_split_10hz(path, data_cfg)
+    return load_csi_10hz(path, data_cfg)
+
+
+def stream_shape_dims(data_cfg: dict) -> int:
+    return len(data_cfg.get("rx_ids", ["RX1", "RX2", "RX3"])) * 2 * int(data_cfg.get("subcarriers_per_rx", 52))
+
+
+def transform_window(window: np.ndarray, data_cfg: dict) -> np.ndarray:
+    """Per-window transform shared by training data build and inference.
+
+    With window_center_shape, each stream spectrum is expressed relative to its own
+    mean inside the window, removing the static room/session fingerprint.
+    """
+    window = np.asarray(window, dtype=np.float32)
+    if data_cfg.get("feature_mode") == "stream_split" and data_cfg.get("window_center_shape", False):
+        window = window.copy()
+        dims = stream_shape_dims(data_cfg)
+        window[:, :dims] -= window[:, :dims].mean(axis=0, keepdims=True)
+    return window
+
+
+def fit_robust_scaler(windows: np.ndarray, path: Path) -> None:
+    frames = windows.reshape(-1, windows.shape[-1]).astype(np.float64)
+    median = np.median(frames, axis=0)
+    q25, q75 = np.percentile(frames, [25, 75], axis=0)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(path, median=median.astype(np.float32), iqr=(q75 - q25).astype(np.float32))
+
+
 def load_scaler(path: Path, expected_dim: int = 315) -> tuple[np.ndarray, np.ndarray]:
     if not path.exists():
         raise FileNotFoundError(f"Bundled scaler not found: {path}")

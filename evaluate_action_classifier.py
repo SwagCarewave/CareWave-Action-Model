@@ -13,7 +13,7 @@ import yaml
 from sklearn.metrics import classification_report, confusion_matrix
 from torch.utils.data import DataLoader, TensorDataset
 
-from models.csi_encoder import CSIActionClassifier
+from models.loading import build_model
 
 
 def make_report(truth: np.ndarray, prediction: np.ndarray) -> dict:
@@ -82,9 +82,7 @@ def main() -> None:
     split_metadata = metadata.iloc[indices].reset_index(drop=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
-    model = CSIActionClassifier(**checkpoint["model_config"]).to(device)
-    model.load_state_dict(checkpoint["model_state"])
-    model.eval()
+    model = build_model(checkpoint).to(device)
     loader = DataLoader(
         TensorDataset(torch.from_numpy(split_x)),
         batch_size=int(cfg["training"].get("batch_size", 64)), shuffle=False,
