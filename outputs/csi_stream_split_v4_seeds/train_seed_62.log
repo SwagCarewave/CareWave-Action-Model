@@ -1,0 +1,30 @@
+Device=cpu; pos_weight=1.0000
+Epoch 001 threshold=0.50 train_f1=0.4386 val_precision=1.0000 val_recall=0.3256 val_f1=0.4912
+Epoch 002 threshold=0.50 train_f1=0.4896 val_precision=1.0000 val_recall=0.4496 val_f1=0.6203
+Epoch 003 threshold=0.50 train_f1=0.8365 val_precision=0.5969 val_recall=0.5969 val_f1=0.5969
+Epoch 004 threshold=0.60 train_f1=0.9154 val_precision=0.9241 val_recall=0.5659 val_f1=0.7019
+Epoch 005 threshold=0.50 train_f1=0.8292 val_precision=0.8696 val_recall=0.4651 val_f1=0.6061
+Epoch 006 threshold=0.50 train_f1=0.9392 val_precision=0.7767 val_recall=0.6202 val_f1=0.6897
+Epoch 007 threshold=0.50 train_f1=0.9579 val_precision=0.9231 val_recall=0.5581 val_f1=0.6957
+Epoch 008 threshold=0.55 train_f1=0.9469 val_precision=0.9367 val_recall=0.5736 val_f1=0.7115
+Epoch 009 threshold=0.50 train_f1=0.9519 val_precision=1.0000 val_recall=0.5891 val_f1=0.7415
+Epoch 010 threshold=0.50 train_f1=0.9648 val_precision=0.9506 val_recall=0.5969 val_f1=0.7333
+Epoch 011 threshold=0.60 train_f1=0.9766 val_precision=1.0000 val_recall=0.6202 val_f1=0.7656
+Epoch 012 threshold=0.50 train_f1=0.9592 val_precision=0.9639 val_recall=0.6202 val_f1=0.7547
+Epoch 013 threshold=0.50 train_f1=0.9344 val_precision=0.8700 val_recall=0.6744 val_f1=0.7598
+Epoch 014 threshold=0.55 train_f1=0.9640 val_precision=0.9747 val_recall=0.5969 val_f1=0.7404
+Epoch 015 threshold=0.50 train_f1=0.9630 val_precision=1.0000 val_recall=0.6667 val_f1=0.8000
+Epoch 016 threshold=0.55 train_f1=0.9705 val_precision=0.9634 val_recall=0.6124 val_f1=0.7488
+Epoch 017 threshold=0.50 train_f1=0.9750 val_precision=0.9868 val_recall=0.5814 val_f1=0.7317
+Epoch 018 threshold=0.50 train_f1=0.9820 val_precision=1.0000 val_recall=0.5891 val_f1=0.7415
+Epoch 019 threshold=0.50 train_f1=0.9719 val_precision=1.0000 val_recall=0.5504 val_f1=0.7100
+Epoch 020 threshold=0.50 train_f1=0.9735 val_precision=1.0000 val_recall=0.5891 val_f1=0.7415
+Epoch 021 threshold=0.50 train_f1=0.9895 val_precision=0.9873 val_recall=0.6047 val_f1=0.7500
+Epoch 022 threshold=0.50 train_f1=0.9835 val_precision=1.0000 val_recall=0.5969 val_f1=0.7476
+Epoch 023 threshold=0.50 train_f1=0.9888 val_precision=1.0000 val_recall=0.6047 val_f1=0.7536
+Epoch 024 threshold=0.50 train_f1=0.9765 val_precision=0.9750 val_recall=0.6047 val_f1=0.7464
+Epoch 025 threshold=0.50 train_f1=0.9896 val_precision=1.0000 val_recall=0.6202 val_f1=0.7656
+Epoch 026 threshold=0.50 train_f1=0.9910 val_precision=1.0000 val_recall=0.6279 val_f1=0.7714
+Epoch 027 threshold=0.50 train_f1=0.9910 val_precision=1.0000 val_recall=0.6279 val_f1=0.7714
+Early stopping
+Best validation fall-F1: 0.8000

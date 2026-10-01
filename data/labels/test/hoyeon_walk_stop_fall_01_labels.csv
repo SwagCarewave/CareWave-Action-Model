@@ -1,0 +1,12 @@
+index,video_name,start_sec,end_sec,label
+0,hoyeon_walk_stop_fall_01.mp4,0,29,walking
+1,hoyeon_walk_stop_fall_01.mp4,29,35,standing
+2,hoyeon_walk_stop_fall_01.mp4,35,37,falling
+3,hoyeon_walk_stop_fall_01.mp4,37,50,lying
+4,hoyeon_walk_stop_fall_01.mp4,50,56,getting_up
+5,hoyeon_walk_stop_fall_01.mp4,56,92,walking
+6,hoyeon_walk_stop_fall_01.mp4,92,99,standing
+7,hoyeon_walk_stop_fall_01.mp4,99,101,falling
+8,hoyeon_walk_stop_fall_01.mp4,101,111,lying
+9,hoyeon_walk_stop_fall_01.mp4,111,120,getting_up
+10,hoyeon_walk_stop_fall_01.mp4,120,123,ignore

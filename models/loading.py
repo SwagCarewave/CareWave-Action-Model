@@ -21,6 +21,9 @@ class ProbabilityAverageEnsemble(nn.Module):
 
 
 def build_model(checkpoint: dict) -> nn.Module:
+    if checkpoint.get("kind") == "motion_gbm":
+        from .motion_gbm import MotionGBMModule
+        return MotionGBMModule(checkpoint).eval()
     if "ensemble_members" in checkpoint:
         members = []
         for member in checkpoint["ensemble_members"]:

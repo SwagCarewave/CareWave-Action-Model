@@ -15,6 +15,7 @@ import pandas as pd
 import torch
 import yaml
 
+from context_verifier import detect_verified_alarms, floor_segments, relative_motion
 from csi_dataset import labels_for_times, load_csi_features, load_labels, load_scaler, transform_window
 from data.build_action_labels import assign_splits, discover_pairs
 from models.loading import build_model
@@ -42,6 +43,59 @@ def frame_motion(raw_features, data, median, iqr):
     return ((raw_features[:, dims] - median[dims]) / iqr[dims]).mean(axis=1)
 
 
+_VERIFIERS: dict = {}
+
+
+def load_verifier(path):
+    """context_verify verifier checkpoint (train_alarm_verifier.py); None -> post_drop rule."""
+    if not path:
+        return None
+    if path not in _VERIFIERS:
+        _VERIFIERS[path] = torch.load(path, map_location="cpu", weights_only=False)
+    return _VERIFIERS[path]
+
+
+def score_recording(model, device, pair, frame, raw_features, data, prep, post, median, iqr, events,
+                    match_before_sec=1.0, match_after_sec=8.0):
+    """Run one whole recording causally; return (event rows, alarm rows, per-window probabilities)."""
+    fps = int(data["target_fps"])
+    stride = max(1, round(float(post.get("inference_stride_seconds", data["stride_seconds"])) * fps))
+    starts, probabilities = recording_probabilities(model, device, raw_features, data, prep, median, iqr, stride)
+    window_sec = float(data["window_seconds"])
+    times = frame["time_sec"].to_numpy()
+    decision_times = times[starts] + window_sec  # causal: decision at window end
+    if post.get("mode") == "context_verify":
+        alarms = detect_verified_alarms(decision_times, probabilities, times + 1.0 / fps, raw_features, data, post,
+                                        load_verifier(post.get("verifier_path")))
+    else:
+        motion = frame_motion(raw_features, data, median, iqr)
+        if post.get("mode", "confirm") != "confirm" and motion is None:
+            raise SystemExit("fall_then_still post-processing needs stream_split features")
+        segments = None
+        if post.get("floor_state", False):
+            relative = relative_motion(raw_features, data, float(post.get("quiet_window_sec", 60.0)))
+            segments = floor_segments(times + 1.0 / fps, relative, post)
+        alarms = detect_fall_alarms(decision_times, probabilities, times + 1.0 / fps,
+                                    motion if motion is not None else np.zeros(len(times)), post, segments)
+    frame_labels = labels_for_times(times, load_labels(Path(pair["label_path"])))
+    sample_events = events[events["sample_id"].astype(str).eq(pair["sample_id"])]
+    matched, event_rows, alarm_rows = set(), [], []
+    for event in sample_events.itertuples(index=False):
+        lo, hi = float(event.onset_sec) - match_before_sec, float(event.impact_sec) + match_after_sec
+        hits = [a for a in alarms if lo <= a["time_sec"] <= hi]
+        matched.update(id(a) for a in hits)
+        event_rows.append({"sample_id": pair["sample_id"], "event_id": event.event_id,
+                           "onset_sec": float(event.onset_sec), "detected": bool(hits),
+                           "latency_sec": (hits[0]["time_sec"] - float(event.onset_sec)) if hits else None})
+    for alarm in alarms:
+        at = (times >= alarm["time_sec"] - window_sec) & (times < alarm["time_sec"])
+        context = pd.Series(frame_labels[at]).value_counts()
+        alarm_rows.append({"sample_id": pair["sample_id"], **alarm, "true_alarm": id(alarm) in matched,
+                           "window_label": str(context.index[0]) if len(context) else "unknown"})
+    probs = pd.DataFrame({"sample_id": pair["sample_id"], "decision_sec": decision_times, "fall_probability": probabilities})
+    return event_rows, alarm_rows, probs
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, required=True)
@@ -51,12 +105,11 @@ def main() -> None:
     parser.add_argument("--match-before-sec", type=float, default=1.0)
     parser.add_argument("--match-after-sec", type=float, default=8.0)
     parser.add_argument("--save-probabilities", type=Path, help="Optional CSV of per-window probabilities")
+    parser.add_argument("--samples", help="Comma-separated sample_ids to evaluate (default: whole split)")
     args = parser.parse_args()
 
     cfg = yaml.safe_load(args.config.read_text(encoding="utf-8"))
     data, prep, post = cfg["data"], cfg["preprocessing"], dict(cfg.get("postprocess", {}))
-    fps = int(data["target_fps"])
-    stride = max(1, round(float(post.get("inference_stride_seconds", data["stride_seconds"])) * fps))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
     model = build_model(checkpoint).to(device)
@@ -65,6 +118,11 @@ def main() -> None:
     split_cfg = data["split"]
     pairs, _, _ = discover_pairs(Path(data["raw_csi_dir"]), Path(data["labels_dir"]), split_cfg.get("test_dir_name", "test"))
     pairs = [p for p in assign_splits(pairs, split_cfg, int(cfg.get("seed", 42))) if p["split"] == args.split]
+    if args.samples:
+        wanted = {s.strip() for s in args.samples.split(",") if s.strip()}
+        if missing := wanted - {p["sample_id"] for p in pairs}:
+            raise SystemExit(f"Samples not in split {args.split}: {sorted(missing)}")
+        pairs = [p for p in pairs if p["sample_id"] in wanted]
     events = pd.read_csv(data["events_path"])
     median = iqr = None
 
@@ -73,34 +131,12 @@ def main() -> None:
         frame, raw_features, _ = load_csi_features(Path(pair["raw_path"]), data)
         if median is None or len(median) != raw_features.shape[1]:
             median, iqr = load_scaler(Path(data["scaler_path"]), raw_features.shape[1])
-        starts, probabilities = recording_probabilities(model, device, raw_features, data, prep, median, iqr, stride)
-        window_sec = float(data["window_seconds"])
-        times = frame["time_sec"].to_numpy()
-        decision_times = times[starts] + window_sec  # causal: decision at window end
-        motion = frame_motion(raw_features, data, median, iqr)
-        if post.get("mode", "confirm") != "confirm" and motion is None:
-            raise SystemExit("fall_then_still post-processing needs stream_split features")
-        alarms = detect_fall_alarms(decision_times, probabilities, times + 1.0 / fps,
-                                    motion if motion is not None else np.zeros(len(times)), post)
-        frame_labels = labels_for_times(times, load_labels(Path(pair["label_path"])))
-        sample_events = events[events["sample_id"].astype(str).eq(pair["sample_id"])]
-        matched = set()
-        for event in sample_events.itertuples(index=False):
-            lo, hi = float(event.onset_sec) - args.match_before_sec, float(event.impact_sec) + args.match_after_sec
-            hits = [a for a in alarms if lo <= a["time_sec"] <= hi]
-            matched.update(id(a) for a in hits)
-            event_rows.append({"sample_id": pair["sample_id"], "event_id": event.event_id,
-                               "onset_sec": float(event.onset_sec), "detected": bool(hits),
-                               "latency_sec": (hits[0]["time_sec"] - float(event.onset_sec)) if hits else None})
-        for alarm in alarms:
-            at = (times >= alarm["time_sec"] - window_sec) & (times < alarm["time_sec"])
-            context = pd.Series(frame_labels[at]).value_counts()
-            alarm_rows.append({"sample_id": pair["sample_id"], **alarm, "true_alarm": id(alarm) in matched,
-                               "window_label": str(context.index[0]) if len(context) else "unknown"})
+        events_i, alarms_i, probs_i = score_recording(model, device, pair, frame, raw_features, data, prep, post,
+                                                      median, iqr, events, args.match_before_sec, args.match_after_sec)
+        event_rows += events_i; alarm_rows += alarms_i
         if args.save_probabilities:
-            rows.append(pd.DataFrame({"sample_id": pair["sample_id"], "decision_sec": decision_times,
-                                      "fall_probability": probabilities}))
-        print(f"{pair['sample_id']}: {len(sample_events)} events, {len(alarms)} alarms")
+            rows.append(probs_i)
+        print(f"{pair['sample_id']}: {len(events_i)} events, {len(alarms_i)} alarms")
 
     events_df, alarms_df = pd.DataFrame(event_rows), pd.DataFrame(alarm_rows)
     false_alarms = alarms_df[~alarms_df["true_alarm"]] if len(alarms_df) else alarms_df

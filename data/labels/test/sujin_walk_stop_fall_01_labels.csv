@@ -1,0 +1,17 @@
+index,video_name,start_sec,end_sec,label
+0,sujin_walk_stop_fall_01.mp4,0,26,walking
+1,sujin_walk_stop_fall_01.mp4,26,32,standing
+2,sujin_walk_stop_fall_01.mp4,32,34,falling
+3,sujin_walk_stop_fall_01.mp4,34,43,lying
+4,sujin_walk_stop_fall_01.mp4,43,50,getting_up
+5,sujin_walk_stop_fall_01.mp4,50,68,walking
+6,sujin_walk_stop_fall_01.mp4,68,77,standing
+7,sujin_walk_stop_fall_01.mp4,77,80,falling
+8,sujin_walk_stop_fall_01.mp4,80,87,lying
+9,sujin_walk_stop_fall_01.mp4,87,93,getting_up
+10,sujin_walk_stop_fall_01.mp4,93,108,walking
+11,sujin_walk_stop_fall_01.mp4,108,113,standing
+12,sujin_walk_stop_fall_01.mp4,113,115,falling
+13,sujin_walk_stop_fall_01.mp4,115,117,lying
+14,sujin_walk_stop_fall_01.mp4,117,122,ignore
+15,sujin_walk_stop_fall_01.mp4,122,123,ignore

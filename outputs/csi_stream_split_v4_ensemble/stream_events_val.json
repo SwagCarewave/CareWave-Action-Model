@@ -1,0 +1,348 @@
+{
+  "split": "val",
+  "checkpoint": "outputs\\csi_stream_split_v4_ensemble\\best.pt",
+  "postprocess": {
+    "enabled": true,
+    "mode": "fall_then_still",
+    "ema_alpha": 0.6,
+    "fall_threshold": 0.5,
+    "confirm_count": 2,
+    "confirm_window": 3,
+    "inference_stride_seconds": 0.5,
+    "still_sec": 2.0,
+    "still_motion_threshold": 0.0,
+    "still_max_wait_sec": 4.0,
+    "max_episode_sec": 6.0,
+    "episode_gap_sec": 1.0,
+    "cooldown_sec": 10.0
+  },
+  "recordings": 21,
+  "events": 23,
+  "events_detected": 18,
+  "events_missed": 5,
+  "false_alarms": 3,
+  "false_alarms_by_label": {
+    "standing": 3
+  },
+  "false_alarms_by_recording": {
+    "yena_fall_normal_20": 2,
+    "sujin_fall_normal_19": 1
+  },
+  "mean_latency_sec": 3.9444444444444446,
+  "match_window_sec": [
+    -1.0,
+    8.0
+  ],
+  "events_detail": [
+    {
+      "sample_id": "sujin_fall_normal_04",
+      "event_id": "sujin_fall_normal_04_fall_001",
+      "onset_sec": 2.0,
+      "detected": true,
+      "latency_sec": 3.5
+    },
+    {
+      "sample_id": "sujin_fall_normal_12",
+      "event_id": "sujin_fall_normal_12_fall_001",
+      "onset_sec": 1.0,
+      "detected": true,
+      "latency_sec": 4.5
+    },
+    {
+      "sample_id": "sujin_fall_normal_15",
+      "event_id": "sujin_fall_normal_15_fall_001",
+      "onset_sec": 1.0,
+      "detected": true,
+      "latency_sec": 4.5
+    },
+    {
+      "sample_id": "sujin_fall_normal_19",
+      "event_id": "sujin_fall_normal_19_fall_001",
+      "onset_sec": 12.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "sujin_fall_normal_19",
+      "event_id": "sujin_fall_normal_19_fall_002",
+      "onset_sec": 40.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "sujin_fall_normal_19",
+      "event_id": "sujin_fall_normal_19_fall_003",
+      "onset_sec": 74.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "sujin_fall_normal_19",
+      "event_id": "sujin_fall_normal_19_fall_004",
+      "onset_sec": 100.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "sujin_fall_stay_down_04",
+      "event_id": "sujin_fall_stay_down_04_fall_001",
+      "onset_sec": 1.0,
+      "detected": true,
+      "latency_sec": 5.0
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "event_id": "yena_fall_normal_03_fall_001",
+      "onset_sec": 1.0,
+      "detected": true,
+      "latency_sec": 3.5
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "event_id": "yena_fall_normal_03_fall_002",
+      "onset_sec": 15.0,
+      "detected": true,
+      "latency_sec": 1.0
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "event_id": "yena_fall_normal_03_fall_003",
+      "onset_sec": 31.0,
+      "detected": true,
+      "latency_sec": 4.5
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "event_id": "yena_fall_normal_03_fall_004",
+      "onset_sec": 48.0,
+      "detected": true,
+      "latency_sec": 1.0
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "event_id": "yena_fall_normal_03_fall_005",
+      "onset_sec": 65.0,
+      "detected": true,
+      "latency_sec": 5.0
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "event_id": "yena_fall_normal_03_fall_006",
+      "onset_sec": 82.0,
+      "detected": true,
+      "latency_sec": 4.0
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "event_id": "yena_fall_normal_03_fall_007",
+      "onset_sec": 95.0,
+      "detected": true,
+      "latency_sec": 4.5
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "event_id": "yena_fall_normal_03_fall_008",
+      "onset_sec": 106.0,
+      "detected": true,
+      "latency_sec": 4.5
+    },
+    {
+      "sample_id": "yena_fall_normal_09",
+      "event_id": "yena_fall_normal_09_fall_001",
+      "onset_sec": 1.0,
+      "detected": true,
+      "latency_sec": 4.0
+    },
+    {
+      "sample_id": "yena_fall_normal_10",
+      "event_id": "yena_fall_normal_10_fall_001",
+      "onset_sec": 1.0,
+      "detected": true,
+      "latency_sec": 4.5
+    },
+    {
+      "sample_id": "yena_fall_normal_20",
+      "event_id": "yena_fall_normal_20_fall_001",
+      "onset_sec": 10.0,
+      "detected": true,
+      "latency_sec": 5.0
+    },
+    {
+      "sample_id": "yena_fall_normal_20",
+      "event_id": "yena_fall_normal_20_fall_002",
+      "onset_sec": 39.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "yena_fall_normal_20",
+      "event_id": "yena_fall_normal_20_fall_003",
+      "onset_sec": 62.0,
+      "detected": true,
+      "latency_sec": 4.0
+    },
+    {
+      "sample_id": "yena_fall_normal_20",
+      "event_id": "yena_fall_normal_20_fall_004",
+      "onset_sec": 100.0,
+      "detected": true,
+      "latency_sec": 3.5
+    },
+    {
+      "sample_id": "yena_fall_stay_down_04",
+      "event_id": "yena_fall_stay_down_04_fall_001",
+      "onset_sec": 1.0,
+      "detected": true,
+      "latency_sec": 4.5
+    }
+  ],
+  "alarms": [
+    {
+      "sample_id": "sujin_fall_normal_04",
+      "time_sec": 5.5,
+      "candidate_sec": 4.0,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "sujin_fall_normal_12",
+      "time_sec": 5.5,
+      "candidate_sec": 4.0,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "sujin_fall_normal_15",
+      "time_sec": 5.5,
+      "candidate_sec": 4.0,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "sujin_fall_normal_19",
+      "time_sec": 63.0,
+      "candidate_sec": 61.0,
+      "true_alarm": false,
+      "window_label": "standing"
+    },
+    {
+      "sample_id": "sujin_fall_stay_down_04",
+      "time_sec": 6.0,
+      "candidate_sec": 4.0,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "time_sec": 4.5,
+      "candidate_sec": 4.0,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "time_sec": 16.0,
+      "candidate_sec": 14.0,
+      "true_alarm": true,
+      "window_label": "standing"
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "time_sec": 35.5,
+      "candidate_sec": 32.5,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "time_sec": 49.0,
+      "candidate_sec": 47.5,
+      "true_alarm": true,
+      "window_label": "standing"
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "time_sec": 70.0,
+      "candidate_sec": 65.5,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "time_sec": 86.0,
+      "candidate_sec": 81.0,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "time_sec": 99.5,
+      "candidate_sec": 95.0,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "yena_fall_normal_03",
+      "time_sec": 110.5,
+      "candidate_sec": 107.0,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "yena_fall_normal_09",
+      "time_sec": 5.0,
+      "candidate_sec": 4.0,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "yena_fall_normal_10",
+      "time_sec": 5.5,
+      "candidate_sec": 4.0,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "yena_fall_normal_20",
+      "time_sec": 15.0,
+      "candidate_sec": 13.0,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "yena_fall_normal_20",
+      "time_sec": 66.0,
+      "candidate_sec": 63.5,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "yena_fall_normal_20",
+      "time_sec": 90.5,
+      "candidate_sec": 90.0,
+      "true_alarm": false,
+      "window_label": "standing"
+    },
+    {
+      "sample_id": "yena_fall_normal_20",
+      "time_sec": 103.5,
+      "candidate_sec": 102.0,
+      "true_alarm": true,
+      "window_label": "falling"
+    },
+    {
+      "sample_id": "yena_fall_normal_20",
+      "time_sec": 120.5,
+      "candidate_sec": 120.0,
+      "true_alarm": false,
+      "window_label": "standing"
+    },
+    {
+      "sample_id": "yena_fall_stay_down_04",
+      "time_sec": 5.5,
+      "candidate_sec": 4.0,
+      "true_alarm": true,
+      "window_label": "lying"
+    }
+  ]
+}

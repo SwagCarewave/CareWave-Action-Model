@@ -68,7 +68,56 @@ def confirmed_candidates(probabilities, alpha: float, threshold: float, count: i
     return out
 
 
-def detect_fall_alarms(times, probabilities, frame_times, frame_motion, cfg: dict) -> list[dict]:
+def active_segments(frame_times, relative_motion, level: float, min_sec: float, gap_sec: float) -> list[tuple[float, float]]:
+    """Movement bursts: relative motion >= level, gaps < gap_sec merged, lasting >= min_sec."""
+    segments, start, last = [], None, None
+    for t, active in zip(frame_times, np.asarray(relative_motion) >= level):
+        if not active:
+            continue
+        if start is not None and t - last > gap_sec:
+            segments.append((start, last)); start = None
+        start = t if start is None else start
+        last = t
+    if start is not None:
+        segments.append((start, last))
+    return [(s, e) for s, e in segments if e - s >= min_sec]
+
+
+class FloorState:
+    """After a fall alarm the person is on the floor: suppress every candidate until the first
+    movement burst that starts settle_sec after the alarm (getting up) has ended.
+
+    Decided from motion, not from stage-1 candidates, so a getting-up the classifier ignores
+    still ends the floor state and the next fall is not swallowed. Causal: a burst is used
+    only once its start time has been reached; its end bounds suppression only after it."""
+
+    def __init__(self, segments: list[tuple[float, float]], cfg: dict):
+        self.segments = segments
+        self.settle = float(cfg.get("floor_settle_sec", 2.0))
+        self.margin = float(cfg.get("floor_margin_sec", 3.0))  # = window length: windows ending this long after the burst still contain it
+        self.max_sec = float(cfg.get("floor_max_sec", 60.0))
+        self.since = None
+
+    def enter(self, t_alarm: float) -> None:
+        self.since = t_alarm
+
+    def suppresses(self, candidate_start: float, t: float) -> bool:
+        """True if a candidate that began at candidate_start (decided at t) belongs to the
+        floor period: lying movements or the getting-up burst itself. A candidate that begins
+        after the burst has ended ends the floor state and is judged normally."""
+        if self.since is None:
+            return False
+        if t - self.since > self.max_sec:
+            self.since = None
+            return False
+        burst = next(((s, e) for s, e in self.segments if s >= self.since + self.settle and s <= t), None)
+        if burst is not None and candidate_start > burst[1] + self.margin:
+            self.since = None
+            return False
+        return True
+
+
+def detect_fall_alarms(times, probabilities, frame_times, frame_motion, cfg: dict, floor_segments=None) -> list[dict]:
     """Turn per-window fall probabilities into alarm events.
 
     mode "confirm": alarm on the rising edge of the confirmed candidate.
@@ -82,6 +131,8 @@ def detect_fall_alarms(times, probabilities, frame_times, frame_motion, cfg: dic
                                      int(cfg.get("confirm_count", 3)), int(cfg.get("confirm_window", 5)))
     mode = str(cfg.get("mode", "confirm"))
     cooldown = float(cfg.get("cooldown_sec", 10.0))
+    # floor_state (needs floor_segments from active_segments): see FloorState.
+    floor = FloorState(floor_segments or [], cfg) if cfg.get("floor_state", False) else None
     alarms, last_alarm = [], -np.inf
     start = last = None
     for i, t in enumerate(times):
@@ -102,6 +153,11 @@ def detect_fall_alarms(times, probabilities, frame_times, frame_motion, cfg: dic
             continue
         quiet = (frame_times > t - float(cfg.get("still_sec", 2.0))) & (frame_times <= t)
         if t > start and quiet.any() and float(np.mean(frame_motion[quiet])) <= float(cfg["still_motion_threshold"]):
+            if floor is not None and floor.suppresses(start, t):
+                start = last = None
+                continue
             alarms.append({"time_sec": float(t), "candidate_sec": float(start)})
             last_alarm = t
+            if floor is not None:
+                floor.enter(t)
     return alarms

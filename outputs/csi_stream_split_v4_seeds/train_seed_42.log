@@ -1,0 +1,24 @@
+Device=cpu; pos_weight=1.0000
+Epoch 001 threshold=0.50 train_f1=0.6135 val_precision=1.0000 val_recall=0.4496 val_f1=0.6203
+Epoch 002 threshold=0.50 train_f1=0.8114 val_precision=0.9865 val_recall=0.5659 val_f1=0.7192
+Epoch 003 threshold=0.55 train_f1=0.8999 val_precision=0.8690 val_recall=0.5659 val_f1=0.6854
+Epoch 004 threshold=0.50 train_f1=0.9084 val_precision=0.8875 val_recall=0.5504 val_f1=0.6794
+Epoch 005 threshold=0.50 train_f1=0.8891 val_precision=0.8090 val_recall=0.5581 val_f1=0.6606
+Epoch 006 threshold=0.60 train_f1=0.9657 val_precision=0.8556 val_recall=0.5969 val_f1=0.7032
+Epoch 007 threshold=0.55 train_f1=0.9599 val_precision=0.8788 val_recall=0.6744 val_f1=0.7632
+Epoch 008 threshold=0.50 train_f1=0.9744 val_precision=0.7921 val_recall=0.6202 val_f1=0.6957
+Epoch 009 threshold=0.50 train_f1=0.9453 val_precision=0.9072 val_recall=0.6822 val_f1=0.7788
+Epoch 010 threshold=0.50 train_f1=0.9309 val_precision=0.8953 val_recall=0.5969 val_f1=0.7163
+Epoch 011 threshold=0.55 train_f1=0.9387 val_precision=0.9043 val_recall=0.6589 val_f1=0.7623
+Epoch 012 threshold=0.50 train_f1=0.9724 val_precision=0.9186 val_recall=0.6124 val_f1=0.7349
+Epoch 013 threshold=0.60 train_f1=0.9697 val_precision=0.8953 val_recall=0.5969 val_f1=0.7163
+Epoch 014 threshold=0.50 train_f1=0.9774 val_precision=0.8039 val_recall=0.6357 val_f1=0.7100
+Epoch 015 threshold=0.50 train_f1=0.9828 val_precision=0.9630 val_recall=0.6047 val_f1=0.7429
+Epoch 016 threshold=0.55 train_f1=0.9820 val_precision=0.9744 val_recall=0.5891 val_f1=0.7343
+Epoch 017 threshold=0.50 train_f1=0.9812 val_precision=0.9870 val_recall=0.5891 val_f1=0.7379
+Epoch 018 threshold=0.50 train_f1=0.9873 val_precision=0.9302 val_recall=0.6202 val_f1=0.7442
+Epoch 019 threshold=0.50 train_f1=0.9850 val_precision=0.9268 val_recall=0.5891 val_f1=0.7204
+Epoch 020 threshold=0.80 train_f1=0.9873 val_precision=0.9512 val_recall=0.6047 val_f1=0.7393
+Epoch 021 threshold=0.50 train_f1=0.9903 val_precision=0.9873 val_recall=0.6047 val_f1=0.7500
+Early stopping
+Best validation fall-F1: 0.7788

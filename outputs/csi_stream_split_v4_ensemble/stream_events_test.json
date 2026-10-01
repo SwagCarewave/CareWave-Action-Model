@@ -1,0 +1,190 @@
+{
+  "split": "test",
+  "checkpoint": "outputs\\csi_stream_split_v4_ensemble\\best.pt",
+  "postprocess": {
+    "enabled": true,
+    "mode": "fall_then_still",
+    "ema_alpha": 0.6,
+    "fall_threshold": 0.5,
+    "confirm_count": 2,
+    "confirm_window": 3,
+    "inference_stride_seconds": 0.5,
+    "still_sec": 2.0,
+    "still_motion_threshold": 0.0,
+    "still_max_wait_sec": 4.0,
+    "max_episode_sec": 6.0,
+    "episode_gap_sec": 1.0,
+    "cooldown_sec": 10.0
+  },
+  "recordings": 9,
+  "events": 13,
+  "events_detected": 4,
+  "events_missed": 9,
+  "false_alarms": 4,
+  "false_alarms_by_label": {
+    "standing": 2,
+    "transition": 1,
+    "walking": 1
+  },
+  "false_alarms_by_recording": {
+    "yena_test_02": 2,
+    "yena_fall_normal_18": 1,
+    "yena_test_03": 1
+  },
+  "mean_latency_sec": 4.375,
+  "match_window_sec": [
+    -1.0,
+    8.0
+  ],
+  "events_detail": [
+    {
+      "sample_id": "csi_test_01",
+      "event_id": "csi_test_01_fall_001",
+      "onset_sec": 94.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "csi_test_01",
+      "event_id": "csi_test_01_fall_002",
+      "onset_sec": 104.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "hoyeon_walk_stop_fall_01",
+      "event_id": "hoyeon_walk_stop_fall_01_fall_001",
+      "onset_sec": 35.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "hoyeon_walk_stop_fall_01",
+      "event_id": "hoyeon_walk_stop_fall_01_fall_002",
+      "onset_sec": 99.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "sujin_walk_stop_fall_01",
+      "event_id": "sujin_walk_stop_fall_01_fall_001",
+      "onset_sec": 32.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "sujin_walk_stop_fall_01",
+      "event_id": "sujin_walk_stop_fall_01_fall_002",
+      "onset_sec": 77.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "sujin_walk_stop_fall_01",
+      "event_id": "sujin_walk_stop_fall_01_fall_003",
+      "onset_sec": 113.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "yena_fall_normal_18",
+      "event_id": "yena_fall_normal_18_fall_001",
+      "onset_sec": 12.0,
+      "detected": true,
+      "latency_sec": 4.0
+    },
+    {
+      "sample_id": "yena_fall_normal_18",
+      "event_id": "yena_fall_normal_18_fall_002",
+      "onset_sec": 44.0,
+      "detected": true,
+      "latency_sec": 4.0
+    },
+    {
+      "sample_id": "yena_fall_normal_18",
+      "event_id": "yena_fall_normal_18_fall_003",
+      "onset_sec": 70.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "yena_fall_normal_18",
+      "event_id": "yena_fall_normal_18_fall_004",
+      "onset_sec": 95.0,
+      "detected": false,
+      "latency_sec": null
+    },
+    {
+      "sample_id": "yena_test_02",
+      "event_id": "yena_test_02_fall_001",
+      "onset_sec": 96.0,
+      "detected": true,
+      "latency_sec": 4.5
+    },
+    {
+      "sample_id": "yena_test_04",
+      "event_id": "yena_test_04_fall_001",
+      "onset_sec": 1.0,
+      "detected": true,
+      "latency_sec": 5.0
+    }
+  ],
+  "alarms": [
+    {
+      "sample_id": "yena_fall_normal_18",
+      "time_sec": 16.0,
+      "candidate_sec": 13.5,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "yena_fall_normal_18",
+      "time_sec": 48.0,
+      "candidate_sec": 45.5,
+      "true_alarm": true,
+      "window_label": "lying"
+    },
+    {
+      "sample_id": "yena_fall_normal_18",
+      "time_sec": 92.5,
+      "candidate_sec": 92.0,
+      "true_alarm": false,
+      "window_label": "standing"
+    },
+    {
+      "sample_id": "yena_test_02",
+      "time_sec": 11.0,
+      "candidate_sec": 8.0,
+      "true_alarm": false,
+      "window_label": "standing"
+    },
+    {
+      "sample_id": "yena_test_02",
+      "time_sec": 37.0,
+      "candidate_sec": 29.5,
+      "true_alarm": false,
+      "window_label": "transition"
+    },
+    {
+      "sample_id": "yena_test_02",
+      "time_sec": 100.5,
+      "candidate_sec": 95.0,
+      "true_alarm": true,
+      "window_label": "falling"
+    },
+    {
+      "sample_id": "yena_test_03",
+      "time_sec": 72.0,
+      "candidate_sec": 71.5,
+      "true_alarm": false,
+      "window_label": "walking"
+    },
+    {
+      "sample_id": "yena_test_04",
+      "time_sec": 6.0,
+      "candidate_sec": 4.0,
+      "true_alarm": true,
+      "window_label": "lying"
+    }
+  ]
+}

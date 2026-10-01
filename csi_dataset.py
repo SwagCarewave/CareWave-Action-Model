@@ -170,6 +170,21 @@ def stream_separation(shapes: np.ndarray, labels: np.ndarray) -> float | None:
     return round(float(np.median(own - other)), 4)
 
 
+def subtract_causal_baseline(values: np.ndarray, tau_frames: float) -> np.ndarray:
+    """Subtract a causal EMA of each column so only change relative to the recent past remains.
+
+    Removes the slowly varying room/session spectrum while keeping within-window motion
+    and posture changes that last shorter than about tau_frames.
+    """
+    alpha = 1.0 / max(1.0, tau_frames)
+    baseline = np.empty_like(values)
+    current = values[0].astype(np.float64)
+    for i, row in enumerate(values):
+        current += alpha * (row - current)
+        baseline[i] = current
+    return (values - baseline).astype(np.float32)
+
+
 def load_csi_stream_split_10hz(path: Path, data_cfg: dict) -> tuple[pd.DataFrame, np.ndarray, dict]:
     """Per RX and packet stream: unit-norm spectrum (52) and packet-to-packet shape change (1).
 
@@ -237,7 +252,11 @@ def load_csi_stream_split_10hz(path: Path, data_cfg: dict) -> tuple[pd.DataFrame
             binned = binned.interpolate(axis=0, limit_direction="both")
             if binned.isna().any().any():
                 raise ValueError(f"{path.name}: {rx} stream {stream} contains unfillable missing values")
-            shape_parts.append(binned[sub_cols].to_numpy(np.float32))
+            shape = binned[sub_cols].to_numpy(np.float32)
+            baseline_sec = float(data_cfg.get("shape_baseline_sec", 0.0))
+            if baseline_sec > 0:
+                shape = subtract_causal_baseline(shape, baseline_sec * fps)
+            shape_parts.append(shape)
             motion_parts.append(binned[["motion"]].to_numpy(np.float32))
         quality_rx.append(rx_quality)
     features = np.concatenate(shape_parts + motion_parts, axis=1).astype(np.float32)

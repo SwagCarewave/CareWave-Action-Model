@@ -1,0 +1,15 @@
+index,video_name,start_sec,end_sec,label
+0,sujin_fall_normal_17.mp4,0,14,standing
+1,sujin_fall_normal_17.mp4,14,17,falling
+2,sujin_fall_normal_17.mp4,17,36,lying
+3,sujin_fall_normal_17.mp4,36,42,getting_up
+4,sujin_fall_normal_17.mp4,42,60,standing
+5,sujin_fall_normal_17.mp4,60,63,falling
+6,sujin_fall_normal_17.mp4,63,79,lying
+7,sujin_fall_normal_17.mp4,79,83,getting_up
+8,sujin_fall_normal_17.mp4,83,96,standing
+9,sujin_fall_normal_17.mp4,96,98,falling
+10,sujin_fall_normal_17.mp4,98,113,lying
+11,sujin_fall_normal_17.mp4,113,118,getting_up
+12,sujin_fall_normal_17.mp4,118,128,standing
+13,sujin_fall_normal_17.mp4,128,129,ignore

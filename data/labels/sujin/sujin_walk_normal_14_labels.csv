@@ -1,0 +1,4 @@
+index,video_name,start_sec,end_sec,label
+0,sujin_walk_normal_14.mp4,0,3,standing
+1,sujin_walk_normal_14.mp4,3,120,walking
+2,sujin_walk_normal_14.mp4,120,121,ignore

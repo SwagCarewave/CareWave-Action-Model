@@ -1,0 +1,125 @@
+{
+  "split": "test",
+  "checkpoint": "outputs\\csi_stream_split_v4_ensemble\\best.pt",
+  "raw_window_metrics": {
+    "standing": {
+      "precision": 0.9338842975206612,
+      "recall": 0.8110047846889952,
+      "f1-score": 0.8681177976952625,
+      "support": 1254.0
+    },
+    "falling": {
+      "precision": 0.05952380952380952,
+      "recall": 0.1724137931034483,
+      "f1-score": 0.08849557522123894,
+      "support": 87.0
+    },
+    "accuracy": 0.7695749440715883,
+    "macro avg": {
+      "precision": 0.49670405352223534,
+      "recall": 0.49170928889622173,
+      "f1-score": 0.47830668645825075,
+      "support": 1341.0
+    },
+    "weighted avg": {
+      "precision": 0.8771584493061002,
+      "recall": 0.7695749440715883,
+      "f1-score": 0.81753827990612,
+      "support": 1341.0
+    },
+    "confusion_matrix": [
+      [
+        1017,
+        237
+      ],
+      [
+        72,
+        15
+      ]
+    ],
+    "threshold": 0.5,
+    "source_breakdown": {
+      "falling": {
+        "support": 87,
+        "correct": 15,
+        "predicted_falling": 15,
+        "accuracy": 0.1724137931034483
+      },
+      "hard_negative": {
+        "support": 988,
+        "correct": 756,
+        "predicted_falling": 232,
+        "accuracy": 0.7651821862348178
+      },
+      "standing": {
+        "support": 266,
+        "correct": 261,
+        "predicted_falling": 5,
+        "accuracy": 0.981203007518797
+      }
+    }
+  },
+  "postprocessed_window_metrics": {
+    "standing": {
+      "precision": 0.9304721030042918,
+      "recall": 0.8644338118022329,
+      "f1-score": 0.8962381149235221,
+      "support": 1254.0
+    },
+    "falling": {
+      "precision": 0.03409090909090909,
+      "recall": 0.06896551724137931,
+      "f1-score": 0.045627376425855515,
+      "support": 87.0
+    },
+    "accuracy": 0.8128262490678598,
+    "macro avg": {
+      "precision": 0.48228150604760045,
+      "recall": 0.4666996645218061,
+      "f1-score": 0.4709327456746888,
+      "support": 1341.0
+    },
+    "weighted avg": {
+      "precision": 0.8723176183879874,
+      "recall": 0.8128262490678598,
+      "f1-score": 0.8410530781977227,
+      "support": 1341.0
+    },
+    "confusion_matrix": [
+      [
+        1084,
+        170
+      ],
+      [
+        81,
+        6
+      ]
+    ],
+    "ema_alpha": 0.6,
+    "threshold": 0.65,
+    "confirm_count": 3,
+    "confirm_window": 5,
+    "source_breakdown": {
+      "falling": {
+        "support": 87,
+        "correct": 6,
+        "predicted_falling": 6,
+        "accuracy": 0.06896551724137931
+      },
+      "hard_negative": {
+        "support": 988,
+        "correct": 818,
+        "predicted_falling": 170,
+        "accuracy": 0.8279352226720648
+      },
+      "standing": {
+        "support": 266,
+        "correct": 266,
+        "predicted_falling": 0,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "prediction_csv": "outputs\\csi_stream_split_v4_ensemble\\test_evaluation_predictions.csv",
+  "warning": "Threshold was selected on validation data; test data was not used for selection. Validation has few hard negatives."
+}
